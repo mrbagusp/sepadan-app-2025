@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "20264636038",
+    "project_id": "sepadan-app-2025",
+    "storage_bucket": "sepadan-app-2025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:20264636038:android:eb4dbf53073b4c08698b07",
+        "android_client_info": {
+          "package_name": "com.sepadan.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "20264636038-dh25104sket6bje7de2da3a057d9nsj9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgqeoH5oO6605Ki5lT5zSSteA5C3KxroA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "20264636038-dh25104sket6bje7de2da3a057d9nsj9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "20264636038-60hgqj1vqr2voro1tb2s6vv3tqqb3h38.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sepadan.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

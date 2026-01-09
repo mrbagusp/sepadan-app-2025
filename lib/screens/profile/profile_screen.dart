@@ -1,0 +1,304 @@
+
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:sepadan/screens/profile/profile_notifier.dart';
+
+class ProfileScreen extends StatelessWidget {
+  final VoidCallback? onProfileUpdate;
+
+  const ProfileScreen({super.key, this.onProfileUpdate});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => ProfileNotifier(),
+      child: Consumer<ProfileNotifier>(
+        builder: (context, notifier, child) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Your Profile'),
+              elevation: 0,
+              actions: [
+                if (notifier.isLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 20.0),
+                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.save),
+                    tooltip: 'Save Profile & Preferences',
+                    onPressed: () async {
+                      final success = await notifier.saveData();
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Profile & Preferences Saved Successfully!'), backgroundColor: Colors.green),
+                        );
+                        // Trigger the callback to update MainScreen
+                        onProfileUpdate?.call();
+                      } else if (notifier.errorMessage != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(notifier.errorMessage!), backgroundColor: Colors.red),
+                        );
+                      }
+                    },
+                  ),
+              ],
+            ),
+            body: _buildBody(context, notifier),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, ProfileNotifier notifier) {
+    if (notifier.isLoading && notifier.userProfile == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        _buildPhotoGrid(context, notifier),
+        const SizedBox(height: 24),
+        _buildProfileForm(context, notifier),
+        const SizedBox(height: 24),
+        _buildPreferencesSection(context, notifier), // Added preferences section
+        const SizedBox(height: 24),
+        _buildLocationSection(context, notifier),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildPhotoGrid(BuildContext context, ProfileNotifier notifier) {
+    // ... (same as before, no changes needed here)
+        return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        if (index < notifier.images.length) {
+          final image = notifier.images[index];
+          return Stack(
+            alignment: Alignment.topRight,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: image is String
+                    ? Image.network(image, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                    : Image.file(image as File, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+              ),
+              Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: () => notifier.removeImage(index),
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Icon(Icons.close, color: Colors.white, size: 18),
+                ),
+              )
+            ],
+          );
+        }
+        return GestureDetector(
+          onTap: () => notifier.pickImage(index),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceVariant,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.add_a_photo_outlined, color: Colors.grey, size: 40),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProfileForm(BuildContext context, ProfileNotifier notifier) {
+    // ... (same as before, no changes needed here)
+     return Form(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+           Text(
+              'About You',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const Divider(height: 24),
+          TextFormField(
+            controller: notifier.nameController,
+            decoration: const InputDecoration(labelText: 'Name'),
+            validator: (value) => value!.isEmpty ? 'Name cannot be empty' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: notifier.ageController,
+            decoration: const InputDecoration(labelText: 'Age'),
+            keyboardType: TextInputType.number,
+             validator: (value) {
+              if (value!.isEmpty) return 'Please enter your age';
+              if (int.tryParse(value) == null || int.parse(value) <= 0) {
+                return 'Please enter a valid age';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: notifier.gender,
+            items: const [
+              DropdownMenuItem(value: 'male', child: Text('Male')),
+              DropdownMenuItem(value: 'female', child: Text('Female')),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                notifier.gender = value;
+              }
+            },
+            decoration: const InputDecoration(labelText: 'Gender'),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: notifier.aboutMeController,
+            decoration: const InputDecoration(labelText: 'About Me'),
+            maxLines: 4,
+            validator: (value) => value!.isEmpty ? 'Please tell us about yourself' : null,
+
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: notifier.faithAnswerController,
+            decoration: const InputDecoration(labelText: 'Who is Jesus Christ to you?'),
+            maxLines: 4,
+            validator: (value) => value!.isEmpty ? 'This field is important' : null,
+
+          ),
+        ],
+      ),
+    );
+  }
+
+   Widget _buildPreferencesSection(BuildContext context, ProfileNotifier notifier) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Your Preferences',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+         const Divider(height: 24),
+        // Interested In
+        const Text('Show Me', style: TextStyle(fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ChoiceChip(
+              label: const Text('Men'),
+              selected: notifier.interestedInGender == 'male',
+              onSelected: (selected) {
+                if (selected) notifier.interestedInGender = 'male';
+              },
+            ),
+            const SizedBox(width: 8),
+            ChoiceChip(
+              label: const Text('Women'),
+              selected: notifier.interestedInGender == 'female',
+              onSelected: (selected) {
+                if (selected) notifier.interestedInGender = 'female';
+              },
+            ),
+             const SizedBox(width: 8),
+            ChoiceChip(
+              label: const Text('Both'),
+              selected: notifier.interestedInGender == 'both',
+              onSelected: (selected) {
+                if (selected) notifier.interestedInGender = 'both';
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Age Range
+        Text('Age Range: ${notifier.preferredAgeRange.start.round()} - ${notifier.preferredAgeRange.end.round()}'),
+        RangeSlider(
+          values: notifier.preferredAgeRange,
+          min: 18,
+          max: 100,
+          divisions: 82,
+          labels: RangeLabels(
+            notifier.preferredAgeRange.start.round().toString(),
+            notifier.preferredAgeRange.end.round().toString(),
+          ),
+          onChanged: (values) {
+            notifier.preferredAgeRange = values;
+          },
+        ),
+        const SizedBox(height: 20),
+
+        // Max Distance
+        Text('Max Distance: ${notifier.preferredDistance.round()} km'),
+        Slider(
+          value: notifier.preferredDistance,
+          min: 1,
+          max: 500,
+          divisions: 499,
+          label: '${notifier.preferredDistance.round()} km',
+          onChanged: (value) {
+            notifier.preferredDistance = value;
+          },
+        ),
+      ],
+    );
+  }
+
+
+  Widget _buildLocationSection(BuildContext context, ProfileNotifier notifier) {
+    // ... (same as before, no changes needed here)
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(Icons.location_on_outlined, color: Theme.of(context).primaryColor, size: 30),
+            const SizedBox(width: 16),
+             Expanded(
+              child: Text(
+                notifier.location != null 
+                ? 'Location Updated' 
+                : 'Location is not set',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                await notifier.updateLocation();
+                 if (notifier.errorMessage != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(notifier.errorMessage!), backgroundColor: Colors.red),
+                  );
+                 }
+                 else if (context.mounted) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Location Updated Successfully!"), backgroundColor: Colors.green),
+                  );
+                 }
+              },
+              child: const Text('UPDATE NOW'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
