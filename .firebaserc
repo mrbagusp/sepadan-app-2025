@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "sepadan-app-2025"
+    "default": "sepadan-app-2025",
+    "sepadan-app-2025": "sepadan-app-2025"
   },
   "targets": {},
   "etags": {}

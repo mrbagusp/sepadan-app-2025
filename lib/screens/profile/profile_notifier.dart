@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -181,6 +180,7 @@ class ProfileNotifier extends ChangeNotifier {
 
       final profile = UserProfile(
         uid: user.uid,
+        email: user.email ?? '',
         name: nameController.text,
         age: int.tryParse(ageController.text) ?? 0,
         gender: gender,

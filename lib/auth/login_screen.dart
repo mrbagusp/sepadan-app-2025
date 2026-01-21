@@ -83,13 +83,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 30),
                 ElevatedButton(
                   onPressed: () async {
-                    // final user = await _authService.signInWithEmailAndPassword(
-                    //   _emailController.text,
-                    //   _passwordController.text,
-                    // );
-                    // if (user != null) {
-                    //   context.go('/main');
-                    // }
+                    final user = await _authService.signInWithEmailAndPassword(
+                      _emailController.text,
+                      _passwordController.text,
+                    );
+                    if (user != null) {
+                      context.go('/main');
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 15),

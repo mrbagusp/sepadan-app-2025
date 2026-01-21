@@ -82,10 +82,10 @@ class MatchService {
 
         // Filter by distance (calculated client-side).
         final distanceInKm = Geolocator.distanceBetween(
-              currentUserProfile.location.latitude,
-              currentUserProfile.location.longitude,
-              profile.location.latitude,
-              profile.location.longitude,
+              currentUserProfile.location!.latitude,
+              currentUserProfile.location!.longitude,
+              profile.location?.latitude ?? 0.0,
+              profile.location?.longitude ?? 0.0,
             ) / 1000;
 
         // CORRECTED: Use 'maxDistanceKm' from the preferences model.

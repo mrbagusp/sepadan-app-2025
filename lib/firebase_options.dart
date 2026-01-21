@@ -51,13 +51,13 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBHZQnu_9MSpeB2A6-HyMkcfLzigx-fUWk',
-    appId: '1:20264636038:ios:628997852d2bb62b698b07',
+    appId: '1:20264636038:ios:46d51fb774cea0a9698b07',
     messagingSenderId: '20264636038',
     projectId: 'sepadan-app-2025',
     storageBucket: 'sepadan-app-2025.firebasestorage.app',
-    iosClientId:
-        '20264636038-60hgqj1vqr2voro1tb2s6vv3tqqb3h38.apps.googleusercontent.com',
-    iosBundleId: 'com.sepadan.app',
+    androidClientId: '20264636038-7lu9ada620or1t3tk4b6ekvvuf030cij.apps.googleusercontent.com',
+    iosClientId: '20264636038-3fpujgaom8cj4697sjp74f8o0c67f2qd.apps.googleusercontent.com',
+    iosBundleId: 'com.sepadan.myapp',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -67,4 +67,5 @@ class DefaultFirebaseOptions {
     projectId: 'sepadan-app-2025',
     storageBucket: 'sepadan-app-2025.firebasestorage.app',
   );
+
 }

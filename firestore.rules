@@ -1,18 +1,118 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 2, 8);
+
+    /* ===================== HELPERS ===================== */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Get data from the user's document in the 'users' collection
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Check if the user has the 'admin' role
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().role == 'admin';
+    }
+
+    // Check if the user has an active premium status
+    function isPremium() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().isPremium == true;
+    }
+
+    // Check if the requesting user is the owner of the document
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /* ===================== USERS ===================== */
+    match /users/{userId} {
+      // Admins can read/write any user document
+      allow read, write: if isAdmin();
+      
+      // Users can read their own document
+      allow read: if isOwner(userId);
+      
+      // Users can update their own document, but cannot change their role.
+      // They can change their premium status (for simulation purposes).
+      allow update: if isOwner(userId) 
+                  && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+    }
+    
+    /* ===================== USER-SUBMITTED CONTENT ===================== */
+
+    // Rules for Daily Devotionals (Admin only)
+    match /daily_devotionals/{devoId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Reusable rules for content submitted by users
+    function userContentRules() {
+      return {
+        // Anyone can read content that has been approved
+        'read': resource.data.status == 'approved',
+        // Premium users can create new content with a 'pending' status
+        'create': isPremium()
+                  && request.resource.data.submittedBy == request.auth.uid
+                  && request.resource.data.status == 'pending',
+        // Admins can update any field (e.g., to approve content)
+        'update': isAdmin(),
+        // Admins can delete content
+        'delete': isAdmin()
+      };
+    }
+
+    match /prayer_requests/{requestId} {
+      allow read: if userContentRules().read || (isSignedIn() && isOwner(resource.data.submittedBy));
+      allow create: if userContentRules().create;
+      allow update: if userContentRules().update;
+      allow delete: if userContentRules().delete;
+    }
+
+    match /events/{eventId} {
+      allow read: if userContentRules().read || (isSignedIn() && isOwner(resource.data.submittedBy));
+      allow create: if userContentRules().create;
+      allow update: if userContentRules().update;
+      allow delete: if userContentRules().delete;
+    }
+
+    match /testimonials/{testimonialId} {
+      allow read: if userContentRules().read || (isSignedIn() && isOwner(resource.data.submittedBy));
+      allow create: if userContentRules().create;
+      allow update: if userContentRules().update;
+      allow delete: if userContentRules().delete;
+    }
+
+    /* ===================== OTHER COLLECTIONS ===================== */
+
+    match /swipes/{swipeId} {
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.swiperId;
+      allow read: if isSignedIn() && request.auth.uid == resource.data.swiperId;
+      allow update, delete: if false;
+    }
+
+    match /matches/{matchId} {
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.userIds;
+      allow create, delete: if false;
+    }
+
+    match /chats/{chatId} {
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.userIds;
+      allow create, delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.userIds;
+        allow create: if isSignedIn() && request.auth.uid == request.resource.data.senderId;
+        allow update, delete: if false;
+      }
     }
   }
 }

@@ -3,32 +3,42 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/services/auth_service.dart';
+import 'package:sepadan/services/user_service.dart'; // Import UserService
+import 'package:sepadan/services/firestore_service.dart'; // Import FirestoreService
 import 'package:sepadan/services/notification_service.dart';
-import 'core/theme.dart';
-import 'core/app_router.dart';
-import 'firebase_options.dart';
+import 'package:sepadan/core/theme.dart';
+import 'package:sepadan/core/app_router.dart';
+import 'package:sepadan/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Initialize notification service
+  // Initialize services
   final notificationService = NotificationService();
-  await notificationService.initialize();
+  await notificationService.init();
 
-  // Create an instance of AuthService
   final authService = AuthService();
+  final userService = UserService(); // Create instance of UserService
+  final firestoreService = FirestoreService(); // Create instance of FirestoreService
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        StreamProvider<UserProfile?>.value(
-          value: authService.userProfileStream,
-          initialData: null, // Start with no user logged in
-        ),
-        // You can also provide the AuthService itself if needed elsewhere
+        
+        // Provide the AuthService
         Provider<AuthService>.value(value: authService),
+        
+        // Provide the FirestoreService
+        Provider<FirestoreService>.value(value: firestoreService),
+
+        // Stream the UserProfile using the new UserService
+        StreamProvider<UserProfile?>.value(
+          value: userService.getUserProfile(),
+          initialData: null, 
+        ),
+
       ],
       child: const MyApp(),
     ),

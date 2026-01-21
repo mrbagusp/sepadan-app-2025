@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "20264636038-7lu9ada620or1t3tk4b6ekvvuf030cij.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sepadan.app",
+            "certificate_hash": "5e6add74ffe573e69d194c9e9cc0c7416f395d84"
+          }
+        },
+        {
           "client_id": "20264636038-dh25104sket6bje7de2da3a057d9nsj9.apps.googleusercontent.com",
           "client_type": 3
         }

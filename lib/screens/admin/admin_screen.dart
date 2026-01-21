@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -9,8 +10,29 @@ class AdminScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Admin Panel'),
       ),
-      body: const Center(
-        child: Text('Welcome, Admin! Moderation tools will be here.'),
+      body: ListView(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('Content Moderation'),
+            onTap: () => context.go('/admin/content-moderation'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.people_alt_outlined),
+            title: const Text('User Management'),
+            onTap: () => context.go('/admin/user-management'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.payment),
+            title: const Text('Payment Gateway Settings'),
+            onTap: () => context.go('/admin/payment-gateway-settings'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.book_outlined),
+            title: const Text('Daily Devo Management'),
+            onTap: () => context.go('/admin/daily-devo-management'),
+          ),
+        ],
       ),
     );
   }

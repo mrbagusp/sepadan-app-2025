@@ -9,6 +9,18 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
+  Stream<User?> get userChanges => _auth.authStateChanges();
+
+  User? get currentUser => _auth.currentUser;
+
+  Future<UserProfile?> getUser() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return null;
+    }
+    return _getUserProfile(user.uid);
+  }
+
   // Stream of UserProfile for the current user
   Stream<UserProfile?> get userProfileStream {
     return _auth.authStateChanges().asyncMap((User? user) {
@@ -92,7 +104,4 @@ class AuthService {
     await _googleSignIn.signOut();
     await _auth.signOut();
   }
-
-  // Get current Firebase User
-  User? get currentUser => _auth.currentUser;
 }
