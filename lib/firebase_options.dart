@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -28,15 +25,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -66,6 +57,37 @@ class DefaultFirebaseOptions {
     messagingSenderId: '20264636038',
     projectId: 'sepadan-app-2025',
     storageBucket: 'sepadan-app-2025.firebasestorage.app',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyClEUi2slxxizvYwO9DsyLonClCp7jZk3M',
+    appId: '1:20264636038:web:13da525ad060d4dd698b07',
+    messagingSenderId: '20264636038',
+    projectId: 'sepadan-app-2025',
+    authDomain: 'sepadan-app-2025.firebaseapp.com',
+    storageBucket: 'sepadan-app-2025.firebasestorage.app',
+    measurementId: 'G-TR968T6QTQ',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyBHZQnu_9MSpeB2A6-HyMkcfLzigx-fUWk',
+    appId: '1:20264636038:ios:46d51fb774cea0a9698b07',
+    messagingSenderId: '20264636038',
+    projectId: 'sepadan-app-2025',
+    storageBucket: 'sepadan-app-2025.firebasestorage.app',
+    androidClientId: '20264636038-7lu9ada620or1t3tk4b6ekvvuf030cij.apps.googleusercontent.com',
+    iosClientId: '20264636038-3fpujgaom8cj4697sjp74f8o0c67f2qd.apps.googleusercontent.com',
+    iosBundleId: 'com.sepadan.myapp',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyClEUi2slxxizvYwO9DsyLonClCp7jZk3M',
+    appId: '1:20264636038:web:a9613c0b41265b27698b07',
+    messagingSenderId: '20264636038',
+    projectId: 'sepadan-app-2025',
+    authDomain: 'sepadan-app-2025.firebaseapp.com',
+    storageBucket: 'sepadan-app-2025.firebasestorage.app',
+    measurementId: 'G-ENQZ91PL80',
   );
 
 }

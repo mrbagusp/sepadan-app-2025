@@ -1,6 +1,6 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sepadan/models/user_preferences.dart';
 import '../models/user_profile.dart';
 
@@ -47,6 +47,40 @@ class ProfileService {
         .update(profile.toFirestore());
   }
 
+  // 🔥 IMPLEMENTASI BARU: saveUserProfile
+  Future<void> saveUserProfile({
+    required String name,
+    required int age,
+    required String gender,
+    required String about,
+    required List<String> photoUrls,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint("saveUserProfile Error: No authenticated user found.");
+        return;
+      }
+
+      final uid = user.uid;
+      final docRef = firestore.collection('profiles').doc(uid);
+
+      await docRef.set({
+        'name': name,
+        'age': age,
+        'gender': gender,
+        'about': about,
+        'photoUrls': photoUrls,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      debugPrint("Profile saved successfully for UID: $uid");
+    } catch (e) {
+      debugPrint("saveUserProfile Error: $e");
+      rethrow;
+    }
+  }
+
   Future<UserPreferences> getUserPreferences() async {
     if (currentUser == null) return UserPreferences.defaultValues();
 
@@ -58,7 +92,7 @@ class ProfileService {
     if (doc.exists) {
       return UserPreferences.fromFirestore(doc);
     }
-    return UserPreferences.defaultValues(); // Return default if not found
+    return UserPreferences.defaultValues();
   }
 
   Future<void> updateUserPreferences(UserPreferences preferences) async {

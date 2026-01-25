@@ -40,10 +40,24 @@ service cloud.firestore {
       // Users can read their own document
       allow read: if isOwner(userId);
       
-      // Users can update their own document, but cannot change their role.
-      // They can change their premium status (for simulation purposes).
+      // Users can create/update their own document
+      allow create: if isOwner(userId);
+      
       allow update: if isOwner(userId) 
                   && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+    }
+
+    /* ===================== PROFILES ===================== */
+    match /profiles/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
+    }
+
+    /* ===================== PREFERENCES ===================== */
+    match /preferences/{userId} {
+      allow read: if isOwner(userId);
+      // Allow create and update for preferences
+      allow write: if isOwner(userId);
     }
     
     /* ===================== USER-SUBMITTED CONTENT ===================== */
@@ -100,7 +114,7 @@ service cloud.firestore {
     }
 
     match /matches/{matchId} {
-      allow read, update: if isSignedIn() && request.auth.uid in resource.data.userIds;
+      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.userIds || request.auth.uid in resource.data.users);
       allow create, delete: if false;
     }
 

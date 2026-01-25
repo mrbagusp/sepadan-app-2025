@@ -69,7 +69,9 @@ final GoRouter router = GoRouter(
   ],
   redirect: (context, state) async {
     final authService = AuthService();
-    final loggedIn = authService.currentUser != null;
+    final user = authService.currentUser;
+    final loggedIn = user != null;
+    
     final loggingIn =
         state.matchedLocation == '/login' ||
         state.matchedLocation == '/register';
@@ -78,33 +80,27 @@ final GoRouter router = GoRouter(
       return loggingIn ? null : '/login';
     }
 
-    final user = await authService.getUser();
-    final isAdmin = user?.role == 'admin';
-    final toAdmin = state.matchedLocation?.startsWith('/admin') ?? false;
-
-    if (toAdmin && !isAdmin) {
-      return '/main';
-    }
-
-    // If logged in, check for profile completion
+    // Ambil data profil untuk cek kelengkapan
     final profileService = ProfileService();
     final userProfile = await profileService.getUserProfile();
-    final profileComplete =
-        userProfile != null &&
+    
+    // Syarat minimal: Nama, Umur, Lokasi, dan minimal 1 Foto
+    final bool profileComplete = userProfile != null &&
         userProfile.name.isNotEmpty &&
-        userProfile.photos.isNotEmpty &&
-        userProfile.age > 0;
+        userProfile.age > 0 &&
+        userProfile.location != null &&
+        userProfile.photos.isNotEmpty;
 
     final onProfileScreen = state.matchedLocation == '/profile';
 
-    // If trying to access login/register while logged in, redirect away
-    if (loggingIn) {
-      return profileComplete ? '/main' : '/profile';
-    }
-
-    // If profile is not complete, redirect to profile screen
     if (!profileComplete && !onProfileScreen) {
       return '/profile';
+    }
+
+    if (profileComplete && (loggingIn || onProfileScreen)) {
+       // Opsional: Jika sudah lengkap dan mencoba ke login/profile, boleh ke main
+       // Tapi biasanya profile tetap bisa diakses untuk edit.
+       if (loggingIn) return '/main';
     }
 
     return null;

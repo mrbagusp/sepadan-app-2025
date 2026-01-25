@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sepadan/models/user_profile.dart';
@@ -13,35 +12,48 @@ class ChatService {
   Future<List<(UserProfile, String)>> getMatches() async {
     if (_currentUserId == null) return [];
 
-    final matchesSnapshot = await _firestore
-        .collection('matches')
-        .where('users', arrayContains: _currentUserId)
-        .get();
+    try {
+      final matchesSnapshot = await _firestore
+          .collection('matches')
+          .where('users', arrayContains: _currentUserId)
+          .get();
 
-    if (matchesSnapshot.docs.isEmpty) return [];
+      if (matchesSnapshot.docs.isEmpty) return [];
 
-    List<String> otherUserIds = matchesSnapshot.docs.map((doc) {
-      final List<String> users = List<String>.from(doc.data()['users']);
-      return users.firstWhere((id) => id != _currentUserId);
-    }).toList();
+      List<String> otherUserIds = [];
+      Map<String, String> matchIdMap = {}; // Map otherUserId -> matchId
 
-    final profilesSnapshot = await _firestore
-        .collection('profiles')
-        .where(FieldPath.documentId, whereIn: otherUserIds)
-        .get();
+      for (var doc in matchesSnapshot.docs) {
+        final List<String> users = List<String>.from(doc.data()['users'] ?? []);
+        final otherId = users.firstWhere((id) => id != _currentUserId, orElse: () => '');
+        if (otherId.isNotEmpty) {
+          otherUserIds.add(otherId);
+          matchIdMap[otherId] = doc.id;
+        }
+      }
 
-    final profiles = profilesSnapshot.docs
-        .map((doc) => UserProfile.fromFirestore(doc))
-        .toList();
+      if (otherUserIds.isEmpty) return [];
 
-    // Pair profiles with their corresponding matchId
-    List<(UserProfile, String)> matchedUsersWithId = [];
-    for (var profile in profiles) {
-       final matchDoc = matchesSnapshot.docs.firstWhere((doc) => List<String>.from(doc.data()['users']).contains(profile.uid));
-       matchedUsersWithId.add((profile, matchDoc.id));
+      // Ambil profil dari koleksi 'profiles' (BUKAN 'users')
+      final profilesSnapshot = await _firestore
+          .collection('profiles')
+          .where(FieldPath.documentId, whereIn: otherUserIds)
+          .get();
+
+      final List<(UserProfile, String)> results = [];
+      for (var doc in profilesSnapshot.docs) {
+        final profile = UserProfile.fromFirestore(doc);
+        final mId = matchIdMap[profile.uid];
+        if (mId != null) {
+          results.add((profile, mId));
+        }
+      }
+
+      return results;
+    } catch (e) {
+      print("ChatService Error: $e");
+      rethrow;
     }
-
-    return matchedUsersWithId;
   }
 
   // Get a real-time stream of messages for a specific match.
@@ -68,11 +80,9 @@ class ChatService {
       'createdAt': Timestamp.now(),
     });
     
-    // Optionally, update the match document with the last message details
     await _firestore.collection('matches').doc(matchId).update({
       'lastMessage': text,
       'lastMessageTimestamp': Timestamp.now(),
     });
-
   }
 }

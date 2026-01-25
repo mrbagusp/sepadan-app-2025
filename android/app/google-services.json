@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "20264636038-7lu9ada620or1t3tk4b6ekvvuf030cij.apps.googleusercontent.com",
+          "client_id": "20264636038-8kupf0etfsoipt37nevde1c1cuchsddb.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.sepadan.app",
-            "certificate_hash": "5e6add74ffe573e69d194c9e9cc0c7416f395d84"
+            "certificate_hash": "b8a1a9896632bbbf11f6b2c271701d6d2c1670fa"
           }
         },
         {
@@ -39,10 +39,10 @@
               "client_type": 3
             },
             {
-              "client_id": "20264636038-60hgqj1vqr2voro1tb2s6vv3tqqb3h38.apps.googleusercontent.com",
+              "client_id": "20264636038-3fpujgaom8cj4697sjp74f8o0c67f2qd.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.sepadan.app"
+                "bundle_id": "com.sepadan.myapp"
               }
             }
           ]

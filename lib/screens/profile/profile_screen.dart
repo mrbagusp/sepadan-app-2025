@@ -1,8 +1,9 @@
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sepadan/screens/profile/profile_notifier.dart';
+import 'package:sepadan/services/auth_service.dart';
+import 'package:go_router/go_router.dart';
 
 class ProfileScreen extends StatelessWidget {
   final VoidCallback? onProfileUpdate;
@@ -19,11 +20,16 @@ class ProfileScreen extends StatelessWidget {
             appBar: AppBar(
               title: const Text('Your Profile'),
               elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Logout',
+                onPressed: () => _showLogoutDialog(context),
+              ),
               actions: [
                 if (notifier.isLoading)
                   const Padding(
                     padding: EdgeInsets.only(right: 20.0),
-                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))),
                   )
                 else
                   IconButton(
@@ -35,7 +41,6 @@ class ProfileScreen extends StatelessWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Profile & Preferences Saved Successfully!'), backgroundColor: Colors.green),
                         );
-                        // Trigger the callback to update MainScreen
                         onProfileUpdate?.call();
                       } else if (notifier.errorMessage != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -53,6 +58,35 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Apakah Anda yakin ingin keluar dari aplikasi?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final authService = Provider.of<AuthService>(context, listen: false);
+                await authService.signOut();
+                if (context.mounted) {
+                  Navigator.pop(context); // Tutup dialog
+                  context.go('/login'); // Kembali ke halaman login
+                }
+              },
+              child: const Text('Keluar', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildBody(BuildContext context, ProfileNotifier notifier) {
     if (notifier.isLoading && notifier.userProfile == null) {
       return const Center(child: CircularProgressIndicator());
@@ -65,7 +99,7 @@ class ProfileScreen extends StatelessWidget {
         const SizedBox(height: 24),
         _buildProfileForm(context, notifier),
         const SizedBox(height: 24),
-        _buildPreferencesSection(context, notifier), // Added preferences section
+        _buildPreferencesSection(context, notifier),
         const SizedBox(height: 24),
         _buildLocationSection(context, notifier),
         const SizedBox(height: 48),
@@ -74,8 +108,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildPhotoGrid(BuildContext context, ProfileNotifier notifier) {
-    // ... (same as before, no changes needed here)
-        return GridView.builder(
+    return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -96,13 +129,19 @@ class ProfileScreen extends StatelessWidget {
                     ? Image.network(image, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
                     : Image.file(image as File, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
               ),
-              Material(
-                color: Colors.black54,
-                shape: const CircleBorder(),
-                child: InkWell(
+              Positioned(
+                top: 4,
+                right: 4,
+                child: GestureDetector(
                   onTap: () => notifier.removeImage(index),
-                  borderRadius: BorderRadius.circular(12),
-                  child: const Icon(Icons.close, color: Colors.white, size: 18),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54, 
+                      shape: BoxShape.circle, // Memperbaiki CircleBorder() menjadi BoxShape.circle
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                  ),
                 ),
               )
             ],
@@ -123,7 +162,6 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildProfileForm(BuildContext context, ProfileNotifier notifier) {
-    // ... (same as before, no changes needed here)
      return Form(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,20 +174,12 @@ class ProfileScreen extends StatelessWidget {
           TextFormField(
             controller: notifier.nameController,
             decoration: const InputDecoration(labelText: 'Name'),
-            validator: (value) => value!.isEmpty ? 'Name cannot be empty' : null,
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: notifier.ageController,
             decoration: const InputDecoration(labelText: 'Age'),
             keyboardType: TextInputType.number,
-             validator: (value) {
-              if (value!.isEmpty) return 'Please enter your age';
-              if (int.tryParse(value) == null || int.parse(value) <= 0) {
-                return 'Please enter a valid age';
-              }
-              return null;
-            },
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
@@ -170,16 +200,12 @@ class ProfileScreen extends StatelessWidget {
             controller: notifier.aboutMeController,
             decoration: const InputDecoration(labelText: 'About Me'),
             maxLines: 4,
-            validator: (value) => value!.isEmpty ? 'Please tell us about yourself' : null,
-
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: notifier.faithAnswerController,
             decoration: const InputDecoration(labelText: 'Who is Jesus Christ to you?'),
             maxLines: 4,
-            validator: (value) => value!.isEmpty ? 'This field is important' : null,
-
           ),
         ],
       ),
@@ -195,7 +221,6 @@ class ProfileScreen extends StatelessWidget {
           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
          const Divider(height: 24),
-        // Interested In
         const Text('Show Me', style: TextStyle(fontWeight: FontWeight.bold)),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -226,8 +251,6 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 20),
-
-        // Age Range
         Text('Age Range: ${notifier.preferredAgeRange.start.round()} - ${notifier.preferredAgeRange.end.round()}'),
         RangeSlider(
           values: notifier.preferredAgeRange,
@@ -243,8 +266,6 @@ class ProfileScreen extends StatelessWidget {
           },
         ),
         const SizedBox(height: 20),
-
-        // Max Distance
         Text('Max Distance: ${notifier.preferredDistance.round()} km'),
         Slider(
           value: notifier.preferredDistance,
@@ -260,9 +281,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-
   Widget _buildLocationSection(BuildContext context, ProfileNotifier notifier) {
-    // ... (same as before, no changes needed here)
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

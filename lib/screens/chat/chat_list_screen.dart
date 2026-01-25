@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/services/chat_service.dart';
@@ -18,7 +17,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
-    _matchesFuture = _chatService.getMatches();
+    _refreshMatches();
+  }
+
+  void _refreshMatches() {
+    setState(() {
+      _matchesFuture = _chatService.getMatches();
+    });
   }
 
   @override
@@ -26,6 +31,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chats'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshMatches,
+          ),
+        ],
       ),
       body: FutureBuilder<List<(UserProfile, String)>>(
         future: _matchesFuture,
@@ -33,11 +44,44 @@ class _ChatListScreenState extends State<ChatListScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          
           if (snapshot.hasError) {
-            return const Center(child: Text('Error loading matches.'));
+            debugPrint("ChatListScreen Error: ${snapshot.error}");
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  const Text('Gagal memuat matches.'),
+                  TextButton(
+                    onPressed: _refreshMatches,
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            );
           }
+
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No matches yet. Keep swiping!'));
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.favorite_border, color: Colors.grey, size: 64),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Belum ada matches',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Terus geser untuk menemukan pasangan!',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
           }
 
           final matches = snapshot.data!;
@@ -57,8 +101,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   child: user.photos.isEmpty ? const Icon(Icons.person) : null,
                 ),
                 title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                // You could show the last message here by enhancing the getMatches function
-                subtitle: const Text('Tap to chat'),
+                subtitle: const Text('Ketuk untuk memulai chat'),
                 onTap: () {
                    context.go(
                     '/chat',

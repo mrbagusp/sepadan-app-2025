@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sepadan/services/auth_service.dart';
@@ -13,6 +14,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
+  bool _isLoading = false;
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 20),
                 TextField(
@@ -71,32 +84,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: const TextStyle(color: Colors.white),
                 ),
                 const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: () async {
-                    await _authService.createUserWithEmailAndPassword(
-                      _emailController.text,
-                      _passwordController.text,
-                    );
-                    if (mounted) {
-                      context.go('/main');
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                if (_isLoading)
+                  const CircularProgressIndicator(color: Colors.white)
+                else
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+                        _showError('Email dan password tidak boleh kosong');
+                        return;
+                      }
+
+                      setState(() => _isLoading = true);
+                      try {
+                        final user = await _authService.createUserWithEmailAndPassword(
+                          _emailController.text.trim(),
+                          _passwordController.text,
+                        );
+                        if (user != null && mounted) {
+                          context.go('/main');
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        _showError(e.message ?? 'Terjadi kesalahan pendaftaran');
+                      } catch (e) {
+                        _showError('Terjadi kesalahan tidak terduga: $e');
+                      } finally {
+                        if (mounted) setState(() => _isLoading = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
+                    child: const Text('Daftar', style: TextStyle(fontSize: 16)),
                   ),
-                  child: const Text('Daftar', style: TextStyle(fontSize: 16)),
-                ),
                 const SizedBox(height: 20),
                 const Text('Atau', style: TextStyle(color: Colors.white)),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () async {
-                    final user = await _authService.signInWithGoogle();
-                    if (user != null) {
-                      context.go('/main');
+                  onPressed: _isLoading ? null : () async {
+                    setState(() => _isLoading = true);
+                    try {
+                      final user = await _authService.signInWithGoogle();
+                      if (user != null && mounted) {
+                        context.go('/main');
+                      }
+                    } catch (e) {
+                      _showError('Gagal masuk dengan Google');
+                    } finally {
+                      if (mounted) setState(() => _isLoading = false);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -110,7 +147,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 10),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: _isLoading ? null : () {
                     // TODO: Implement phone verification
                   },
                    style: ElevatedButton.styleFrom(

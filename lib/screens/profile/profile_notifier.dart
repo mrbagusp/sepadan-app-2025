@@ -71,6 +71,7 @@ class ProfileNotifier extends ChangeNotifier {
 
   void _setError(String? message) {
     _errorMessage = message;
+    notifyListeners();
   }
 
   Future<void> loadData() async {
@@ -160,6 +161,7 @@ class ProfileNotifier extends ChangeNotifier {
       _setLoading(false);
       return false;
     }
+    
     if (_location == null) {
       _setError("Please update your location before saving.");
       _setLoading(false);
@@ -171,7 +173,11 @@ class ProfileNotifier extends ChangeNotifier {
       List<String> photoUrls = [];
       for (var image in _images) {
         if (image is File) {
-          final photoUrl = await _uploadImage(image, user.uid);
+          // Double check authentication before starting upload
+          final currentUser = _auth.currentUser;
+          if (currentUser == null) throw Exception("Session expired. Please login again.");
+          
+          final photoUrl = await _uploadImage(image, currentUser.uid);
           photoUrls.add(photoUrl);
         } else if (image is String) {
           photoUrls.add(image);
@@ -192,7 +198,8 @@ class ProfileNotifier extends ChangeNotifier {
         updatedAt: Timestamp.now(),
       );
 
-      if (_userProfile == null || !(await _profileService.getUserProfile() != null)) {
+      final existingProfile = await _profileService.getUserProfile();
+      if (existingProfile == null) {
           await _profileService.createUserProfile(profile);
       } else {
           await _profileService.updateUserProfile(profile);
@@ -211,6 +218,7 @@ class ProfileNotifier extends ChangeNotifier {
       return true;
 
     } catch (e) {
+      debugPrint("Save Data Error: $e");
       _setError('Failed to save data: $e');
       return false;
     } finally {
@@ -219,9 +227,26 @@ class ProfileNotifier extends ChangeNotifier {
   }
 
   Future<String> _uploadImage(File imageFile, String userId) async {
-    final storageRef = _storage.ref().child('profile_photos').child(userId).child('${DateTime.now().millisecondsSinceEpoch}.jpg');
-    await storageRef.putFile(imageFile);
-    return await storageRef.getDownloadURL();
+    try {
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      // Format file sesuai instruksi rules: /profileImages/{uid}/profile_{timestamp}.jpg
+      final String fileName = 'profile_$timestamp.jpg';
+      
+      final storageRef = _storage.ref().child('profileImages').child(userId).child(fileName);
+      
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+      );
+
+      final UploadTask uploadTask = storageRef.putFile(imageFile, metadata);
+      
+      final TaskSnapshot snapshot = await uploadTask;
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      debugPrint("Upload Error Details: $e");
+      rethrow;
+    }
   }
 
   @override
