@@ -3,9 +3,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/services/auth_service.dart';
-import 'package:sepadan/services/user_service.dart'; // Import UserService
-import 'package:sepadan/services/firestore_service.dart'; // Import FirestoreService
+import 'package:sepadan/services/user_service.dart';
+import 'package:sepadan/services/firestore_service.dart';
 import 'package:sepadan/services/notification_service.dart';
+import 'package:sepadan/services/premium_service.dart';
+import 'package:sepadan/notifiers/premium_notifier.dart';
+import 'package:sepadan/screens/match/match_notifier.dart';
 import 'package:sepadan/core/theme.dart';
 import 'package:sepadan/core/app_router.dart';
 import 'package:sepadan/firebase_options.dart';
@@ -14,31 +17,29 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Initialize services
   final notificationService = NotificationService();
   await notificationService.init();
 
   final authService = AuthService();
-  final userService = UserService(); // Create instance of UserService
-  final firestoreService = FirestoreService(); // Create instance of FirestoreService
+  final userService = UserService();
+  final firestoreService = FirestoreService();
+  final premiumService = PremiumService();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => PremiumNotifier()),
+        ChangeNotifierProvider(create: (context) => MatchNotifier()),
         
-        // Provide the AuthService
         Provider<AuthService>.value(value: authService),
-        
-        // Provide the FirestoreService
         Provider<FirestoreService>.value(value: firestoreService),
+        Provider<PremiumService>.value(value: premiumService),
 
-        // Stream the UserProfile using the new UserService
         StreamProvider<UserProfile?>.value(
           value: userService.getUserProfile(),
           initialData: null, 
         ),
-
       ],
       child: const MyApp(),
     ),

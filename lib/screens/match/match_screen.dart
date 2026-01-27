@@ -1,4 +1,4 @@
-
+import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -18,35 +18,41 @@ class _MatchScreenState extends State<MatchScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch matches after the first frame is rendered.
+    // Memastikan pengambilan data dilakukan saat layar dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MatchNotifier>().fetchPotentialMatches();
+      if (mounted) {
+        context.read<MatchNotifier>().fetchPotentialMatches();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => MatchNotifier(),
-      child: Consumer<MatchNotifier>(
-        builder: (context, notifier, child) {
-          if (notifier.isMutualMatch && notifier.matchedUser != null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _showMatchDialog(context, notifier, notifier.matchedUser!);
-              notifier.resetMutualMatch();
-            });
-          }
+    return Consumer<MatchNotifier>(
+      builder: (context, notifier, child) {
+        // Handle dialog jika terjadi mutual match
+        if (notifier.isMutualMatch && notifier.matchedUser != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showMatchDialog(context, notifier, notifier.matchedUser!);
+            notifier.resetMutualMatch();
+          });
+        }
 
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Find Your Match'),
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-            ),
-            body: _buildBody(context, notifier),
-          );
-        },
-      ),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Find Your Match'),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () => notifier.fetchPotentialMatches(),
+              ),
+            ],
+          ),
+          body: _buildBody(context, notifier),
+        );
+      },
     );
   }
 
@@ -56,13 +62,30 @@ class _MatchScreenState extends State<MatchScreen> {
     }
 
     if (notifier.profiles.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Text(
-            'No more profiles found. Try adjusting your preferences!',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, color: Colors.grey),
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.search_off, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text(
+                'No more profiles found.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+              const Text(
+                'Try adjusting your preferences or click refresh!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => notifier.fetchPotentialMatches(),
+                child: const Text('Refresh Search'),
+              ),
+            ],
           ),
         ),
       );
@@ -73,6 +96,8 @@ class _MatchScreenState extends State<MatchScreen> {
         Expanded(
           child: CardSwiper(
             cardsCount: notifier.profiles.length,
+            // 🔥 FIX: Ensure numberOfCardsDisplayed is within bounds
+            numberOfCardsDisplayed: min(notifier.profiles.length, 3),
             onSwipe: (previousIndex, currentIndex, direction) {
               final didLike = direction == CardSwiperDirection.right;
               notifier.swipe(previousIndex, didLike);
@@ -82,11 +107,11 @@ class _MatchScreenState extends State<MatchScreen> {
               final profile = notifier.profiles[index];
               return _buildProfileCard(context, profile);
             },
-            allowedSwipeDirection: AllowedSwipeDirection.symmetric(horizontal: true),
+            allowedSwipeDirection: const AllowedSwipeDirection.symmetric(horizontal: true),
           ),
         ),
-        _buildActionButtons(context),
-        const SizedBox(height: 40),
+        _buildActionButtons(context, notifier),
+        const SizedBox(height: 20),
       ],
     );
   }
@@ -94,6 +119,7 @@ class _MatchScreenState extends State<MatchScreen> {
   Widget _buildProfileCard(BuildContext context, UserProfile profile) {
     return Card(
       elevation: 8,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -103,8 +129,10 @@ class _MatchScreenState extends State<MatchScreen> {
             Image.network(
               profile.photos[0],
               fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) =>
-                  progress == null ? child : const Center(child: CircularProgressIndicator()),
+              errorBuilder: (context, error, stackTrace) => Container(
+                color: Colors.grey[300],
+                child: const Icon(Icons.person, size: 100, color: Colors.white),
+              ),
             ),
 
           Container(
@@ -148,9 +176,7 @@ class _MatchScreenState extends State<MatchScreen> {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context) {
-    final notifier = context.read<MatchNotifier>();
-
+  Widget _buildActionButtons(BuildContext context, MatchNotifier notifier) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -194,13 +220,12 @@ class _MatchScreenState extends State<MatchScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Current user's avatar - requires notifier to hold current user profile
-                // For now, a placeholder:
                 const CircleAvatar(radius: 40, child: Icon(Icons.person)),
                 const Icon(CupertinoIcons.heart_fill, color: Colors.red, size: 30),
                 CircleAvatar(
                   radius: 40,
-                  backgroundImage: NetworkImage(matchedUser.photos[0]),
+                  backgroundImage: matchedUser.photos.isNotEmpty ? NetworkImage(matchedUser.photos[0]) : null,
+                  child: matchedUser.photos.isEmpty ? const Icon(Icons.person) : null,
                 ),
               ],
             ),
@@ -211,13 +236,17 @@ class _MatchScreenState extends State<MatchScreen> {
             child: const Text('Say Hello!'),
             onPressed: () {
                 Navigator.of(dialogContext).pop();
-                context.go(
-                  '/chat',
-                  extra: {
-                    'matchId': notifier.matchId,
-                    'otherUser': matchedUser,
-                  },
-                );
+                // 🔥 FIX: Ensure matchId is not null
+                final mId = notifier.matchId;
+                if (mId != null) {
+                  context.go(
+                    '/chat',
+                    extra: {
+                      'matchId': mId,
+                      'otherUser': matchedUser,
+                    },
+                  );
+                }
             },
           ),
           TextButton(

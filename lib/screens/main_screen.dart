@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:sepadan/models/user_profile.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sepadan/services/auth_service.dart';
 import 'package:sepadan/services/profile_service.dart';
 import '../screens/match/match_screen.dart';
 import '../screens/explore/explore_screen.dart';
 import '../screens/chat/chat_list_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/admin/admin_dashboard.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -20,124 +20,83 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   bool _profileIsComplete = false;
   bool _isLoading = true;
-  String _userRole = 'user';
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
-    _checkProfileAndRole();
+    _initData();
   }
 
-  Future<void> _checkProfileAndRole() async {
+  Future<void> _initData() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
-    final authService = AuthService();
-    final user = await authService.getUser();
-    final profileService = ProfileService();
-    final userProfile = await profileService.getUserProfile();
-    final isComplete =
-        userProfile != null &&
-        userProfile.name.isNotEmpty &&
-        userProfile.photos.isNotEmpty &&
-        userProfile.age > 0;
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final uid = authService.currentUser?.uid;
 
-    if (mounted) {
-      setState(() {
-        _profileIsComplete = isComplete;
-        _userRole = user?.role ?? 'user';
-        _isLoading = false;
-      });
-    }
-  }
+      if (uid != null) {
+        // 1. Ambil status Admin dari koleksi 'users'
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final userData = userDoc.data() ?? {};
+        
+        // 2. Ambil kelengkapan profil dari koleksi 'profiles'
+        final userProfile = await ProfileService().getUserProfile();
+        
+        final isComplete = userProfile != null &&
+            userProfile.name.isNotEmpty &&
+            userProfile.photos.isNotEmpty &&
+            userProfile.age > 0;
 
-  // Allows profile page to trigger a refresh
-  void onProfileUpdated() {
-    _checkProfileAndRole();
-  }
-
-  void _onItemTapped(int index) {
-    if (index == 4) {
-      context.go('/admin');
-      return;
+        if (mounted) {
+          setState(() {
+            _isAdmin = userData['isAdmin'] == true;
+            _profileIsComplete = isComplete;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("MainScreen Init Error: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
-    // Allow navigation to Explore (1) and Profile (3) anytime
-    if (index == 1 || index == 3) {
-       setState(() {
-        _selectedIndex = index;
-      });
-      return;
-    }
-
-    // Block Match (0) and Chat (2) if profile is incomplete
-    if (!_profileIsComplete) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please complete your profile to use this feature.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isAdmin = _userRole == 'admin';
-
-    // Dynamically build the screens and navigation items
     final List<Widget> screens = [
       const MatchScreen(),
       const ExploreScreen(),
       const ChatListScreen(),
-      ProfileScreen(onProfileUpdate: onProfileUpdated),
+      ProfileScreen(onProfileUpdate: _initData),
+      if (_isAdmin) const AdminDashboard(),
     ];
 
     final List<BottomNavigationBarItem> navItems = [
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.favorite),
-        label: 'Match',
-      ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.explore),
-        label: 'Explore',
-      ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.chat),
-        label: 'Chat',
-      ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.person),
-        label: 'Profile',
-      ),
-      if (isAdmin) 
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.admin_panel_settings),
-          label: 'Admin',
-        ),
+      const BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Match'),
+      const BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explore'),
+      const BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
+      const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+      if (_isAdmin) const BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: 'Admin'),
     ];
 
-    // Adjust selected index if it's out of bounds after a role change
-    if (_selectedIndex >= screens.length) {
-      _selectedIndex = 0;
-    }
+    int safeIndex = _selectedIndex;
+    if (safeIndex >= screens.length) safeIndex = 0;
 
     return Scaffold(
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : screens[_selectedIndex],
+          : IndexedStack(
+              index: safeIndex,
+              children: screens,
+            ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        items: navItems, // Use the dynamic list of items
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: _profileIsComplete || _selectedIndex == 1 || _selectedIndex == 3 
-            ? Theme.of(context).primaryColor 
-            : Colors.grey,
+        items: navItems,
+        currentIndex: safeIndex,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        selectedItemColor: Theme.of(context).primaryColor,
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,
       ),

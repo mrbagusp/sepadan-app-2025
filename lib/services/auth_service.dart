@@ -8,9 +8,8 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: '20264636038-dh25104sket6bje7de2da3a057d9nsj9.apps.googleusercontent.com',
-  );
+  // Hapus serverClientId manual untuk membiarkan SDK menggunakan google-services.json
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   Stream<User?> get userChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
@@ -25,16 +24,25 @@ class AuthService {
       await docRef.set({
         'uid': user.uid,
         'email': user.email ?? '',
-        'phoneNumber': user.phoneNumber ?? '', // 🔥 Fix: Save phone number if available
+        'phoneNumber': user.phoneNumber ?? '',
         'isAdmin': false,
         'isPremium': false,
+        'isSuspended': false,
         'role': 'user',
         'createdAt': FieldValue.serverTimestamp(),
       });
     } else {
-      // 🔥 Fix: Update phone number if it's missing in existing doc
+      final data = docSnapshot.data() as Map<String, dynamic>?;
+      
+      if (data != null && data['isSuspended'] == true) {
+        await signOut();
+        throw FirebaseAuthException(
+          code: 'suspended',
+          message: 'Account suspended. Contact support.',
+        );
+      }
+
       if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
-        final data = docSnapshot.data() as Map<String, dynamic>?;
         if (data != null && (data['phoneNumber'] == null || data['phoneNumber'] == '')) {
           await docRef.update({'phoneNumber': user.phoneNumber});
         }
@@ -53,8 +61,12 @@ class AuthService {
   Stream<UserProfile?> get userProfileStream {
     return _auth.authStateChanges().asyncMap((User? user) async {
       if (user == null) return null;
-      await ensureUserDocument(user);
-      return _getUserProfile(user.uid);
+      try {
+        await ensureUserDocument(user);
+        return _getUserProfile(user.uid);
+      } catch (e) {
+        return null;
+      }
     });
   }
 
@@ -75,7 +87,8 @@ class AuthService {
 
   Future<User?> signInWithGoogle() async {
     try {
-      try { await _googleSignIn.signOut(); } catch (_) {}
+      // Membersihkan session sebelumnya untuk memaksa picker akun muncul
+      await _googleSignIn.signOut().catchError((_) => null);
 
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
@@ -95,8 +108,11 @@ class AuthService {
       }
 
       return user;
+    } on FirebaseAuthException catch (e) {
+      print("Google Auth Firebase Error: ${e.code} - ${e.message}");
+      rethrow;
     } catch (e) {
-      print("Google Sign-In Error: $e");
+      print("Google Sign-In General Error: $e");
       rethrow;
     }
   }
@@ -143,7 +159,10 @@ class AuthService {
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       verificationCompleted: verificationCompleted,
-      verificationFailed: verificationFailed,
+      verificationFailed: (e) {
+        print("Phone Auth Error: ${e.code} - ${e.message}");
+        verificationFailed(e);
+      },
       codeSent: codeSent,
       codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
       timeout: const Duration(seconds: 60),
@@ -169,7 +188,7 @@ class AuthService {
   // ================= SIGN OUT =================
 
   Future<void> signOut() async {
-    try { await _googleSignIn.signOut(); } catch (_) {}
+    await _googleSignIn.signOut().catchError((_) => null);
     await _auth.signOut();
   }
 }

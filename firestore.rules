@@ -8,124 +8,108 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Get data from the user's document in the 'users' collection
+    // Ambil data user dari koleksi 'users'
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Check if the user has the 'admin' role
+    // Cek apakah user adalah Admin
     function isAdmin() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && getUserData().role == 'admin';
+        && getUserData().get('isAdmin', false) == true;
     }
 
-    // Check if the user has an active premium status
-    function isPremium() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && getUserData().isPremium == true;
-    }
-
-    // Check if the requesting user is the owner of the document
+    // Cek apakah user adalah pemilik dokumen
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Cek status Premium
+    function isPremium() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().get('isPremium', false) == true;
+    }
+
     /* ===================== USERS ===================== */
     match /users/{userId} {
-      // Admins can read/write any user document
-      allow read, write: if isAdmin();
-      
-      // Users can read their own document
-      allow read: if isOwner(userId);
-      
-      // Users can create/update their own document
-      allow create: if isOwner(userId);
-      
-      allow update: if isOwner(userId) 
-                  && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
     }
 
     /* ===================== PROFILES ===================== */
     match /profiles/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow write: if isOwner(userId) || isAdmin();
     }
 
     /* ===================== PREFERENCES ===================== */
     match /preferences/{userId} {
-      allow read: if isOwner(userId);
-      // Allow create and update for preferences
-      allow write: if isOwner(userId);
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    /* ===================== LIKES & PASSES ===================== */
+    match /likes/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+      match /likedUsers/{otherUserId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /passes/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+      match /passedUsers/{otherUserId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
     }
     
-    /* ===================== USER-SUBMITTED CONTENT ===================== */
+    /* ===================== CONTENT MODERATION ===================== */
 
-    // Rules for Daily Devotionals (Admin only)
     match /daily_devotionals/{devoId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // Reusable rules for content submitted by users
-    function userContentRules() {
-      return {
-        // Anyone can read content that has been approved
-        'read': resource.data.status == 'approved',
-        // Premium users can create new content with a 'pending' status
-        'create': isPremium()
-                  && request.resource.data.submittedBy == request.auth.uid
-                  && request.resource.data.status == 'pending',
-        // Admins can update any field (e.g., to approve content)
-        'update': isAdmin(),
-        // Admins can delete content
-        'delete': isAdmin()
-      };
+    function contentApproved() {
+      return resource.data.get('approved', false) == true;
     }
 
-    match /prayer_requests/{requestId} {
-      allow read: if userContentRules().read || (isSignedIn() && isOwner(resource.data.submittedBy));
-      allow create: if userContentRules().create;
-      allow update: if userContentRules().update;
-      allow delete: if userContentRules().delete;
+    match /prayer_requests/{id} {
+      allow read: if isSignedIn() && (contentApproved() || isOwner(resource.data.get('submittedBy', '')) || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && isOwner(resource.data.get('submittedBy', '')));
     }
 
-    match /events/{eventId} {
-      allow read: if userContentRules().read || (isSignedIn() && isOwner(resource.data.submittedBy));
-      allow create: if userContentRules().create;
-      allow update: if userContentRules().update;
-      allow delete: if userContentRules().delete;
+    match /events/{id} {
+      allow read: if isSignedIn() && (contentApproved() || isOwner(resource.data.get('submittedBy', '')) || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && isOwner(resource.data.get('submittedBy', '')));
     }
 
-    match /testimonials/{testimonialId} {
-      allow read: if userContentRules().read || (isSignedIn() && isOwner(resource.data.submittedBy));
-      allow create: if userContentRules().create;
-      allow update: if userContentRules().update;
-      allow delete: if userContentRules().delete;
+    match /testimonials/{id} {
+      allow read: if isSignedIn() && (contentApproved() || isOwner(resource.data.get('submittedBy', '')) || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && isOwner(resource.data.get('submittedBy', '')));
     }
 
-    /* ===================== OTHER COLLECTIONS ===================== */
-
-    match /swipes/{swipeId} {
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.swiperId;
-      allow read: if isSignedIn() && request.auth.uid == resource.data.swiperId;
-      allow update, delete: if false;
-    }
+    /* ===================== MATCHES & CHATS ===================== */
 
     match /matches/{matchId} {
-      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.userIds || request.auth.uid in resource.data.users);
-      allow create, delete: if false;
+      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.get('users', []) || request.auth.uid in resource.data.get('userIds', []) || isAdmin());
+      allow create: if isSignedIn();
+      allow delete: if isAdmin();
     }
 
     match /chats/{chatId} {
-      allow read, update: if isSignedIn() && request.auth.uid in resource.data.userIds;
-      allow create, delete: if false;
-
+      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.get('userIds', []) || isAdmin());
+      allow create: if isSignedIn();
+      
       match /messages/{messageId} {
-        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.userIds;
-        allow create: if isSignedIn() && request.auth.uid == request.resource.data.senderId;
-        allow update, delete: if false;
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
       }
     }
   }

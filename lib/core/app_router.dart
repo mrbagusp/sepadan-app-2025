@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sepadan/models/user_profile.dart';
-import 'package:sepadan/screens/admin/admin_screen.dart';
-import 'package:sepadan/screens/admin/content_moderation_screen.dart';
-import 'package:sepadan/screens/admin/daily_devo_management_screen.dart';
-import 'package:sepadan/screens/admin/payment_gateway_settings_screen.dart';
-import 'package:sepadan/screens/admin/user_management_screen.dart';
+import 'package:sepadan/screens/admin/admin_dashboard.dart';
 import 'package:sepadan/screens/chat/chat_screen.dart';
+import 'package:sepadan/screens/premium/premium_upsell_screen.dart';
+import 'package:sepadan/screens/premium/payment_screen.dart';
 import 'package:sepadan/services/profile_service.dart';
 import 'package:sepadan/services/auth_service.dart';
 import '../screens/main_screen.dart';
@@ -24,40 +22,13 @@ final GoRouter router = GoRouter(
   routes: [
     GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-    GoRoute(
-      path: '/register',
-      builder: (context, state) => const RegisterScreen(),
-    ),
+    GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
     GoRoute(path: '/main', builder: (context, state) => const MainScreen()),
-    GoRoute(
-      path: '/profile',
-      builder: (context, state) => const ProfileScreen(),
-    ),
-    GoRoute(
-      path: '/settings',
-      builder: (context, state) => const SettingsScreen(),
-    ),
-    GoRoute(
-        path: '/admin',
-        builder: (context, state) => const AdminScreen(),
-        routes: [
-          GoRoute(
-            path: 'content-moderation',
-            builder: (context, state) => const ContentModerationScreen(),
-          ),
-          GoRoute(
-            path: 'user-management',
-            builder: (context, state) => const UserManagementScreen(),
-          ),
-          GoRoute(
-            path: 'payment-gateway-settings',
-            builder: (context, state) => const PaymentGatewaySettingsScreen(),
-          ),
-          GoRoute(
-            path: 'daily-devo-management',
-            builder: (context, state) => const DailyDevoManagementScreen(),
-          ),
-        ]),
+    GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
+    GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
+    GoRoute(path: '/premium', builder: (context, state) => const PremiumUpsellScreen(featureName: 'Premium Features')),
+    GoRoute(path: '/payment', builder: (context, state) => const PaymentScreen()),
+    GoRoute(path: '/admin', builder: (context, state) => const AdminDashboard()),
     GoRoute(
         path: '/chat',
         builder: (context, state) {
@@ -72,35 +43,37 @@ final GoRouter router = GoRouter(
     final user = authService.currentUser;
     final loggedIn = user != null;
     
-    final loggingIn =
-        state.matchedLocation == '/login' ||
-        state.matchedLocation == '/register';
+    final isAuthRoute = state.matchedLocation == '/login' || state.matchedLocation == '/register';
 
     if (!loggedIn) {
-      return loggingIn ? null : '/login';
+      return isAuthRoute ? null : '/login';
     }
 
-    // Ambil data profil untuk cek kelengkapan
-    final profileService = ProfileService();
-    final userProfile = await profileService.getUserProfile();
-    
-    // Syarat minimal: Nama, Umur, Lokasi, dan minimal 1 Foto
-    final bool profileComplete = userProfile != null &&
-        userProfile.name.isNotEmpty &&
-        userProfile.age > 0 &&
-        userProfile.location != null &&
-        userProfile.photos.isNotEmpty;
+    try {
+      // Cek profil dengan aman
+      final userProfile = await ProfileService().getUserProfile().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => null,
+      );
+      
+      final bool profileComplete = userProfile != null &&
+          userProfile.name.isNotEmpty &&
+          userProfile.photos.isNotEmpty &&
+          userProfile.age > 0;
 
-    final onProfileScreen = state.matchedLocation == '/profile';
+      final onProfileScreen = state.matchedLocation == '/profile';
 
-    if (!profileComplete && !onProfileScreen) {
-      return '/profile';
-    }
+      if (!profileComplete && !onProfileScreen) {
+        return '/profile';
+      }
 
-    if (profileComplete && (loggingIn || onProfileScreen)) {
-       // Opsional: Jika sudah lengkap dan mencoba ke login/profile, boleh ke main
-       // Tapi biasanya profile tetap bisa diakses untuk edit.
-       if (loggingIn) return '/main';
+      if (profileComplete && isAuthRoute) {
+        return '/main';
+      }
+    } catch (e) {
+      debugPrint("Router Redirect Error: $e");
+      // Jika error Firestore (Permission Denied), biarkan user di halaman saat ini
+      // agar tidak terjadi loop crash.
     }
 
     return null;
