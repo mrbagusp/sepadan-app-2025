@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/services/chat_service.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -12,18 +13,11 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
   final ChatService _chatService = ChatService();
-  Future<List<(UserProfile, String)>>? _matchesFuture;
 
-  @override
-  void initState() {
-    super.initState();
-    _refreshMatches();
-  }
-
-  void _refreshMatches() {
-    setState(() {
-      _matchesFuture = _chatService.getMatches();
-    });
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return '';
+    final DateTime dateTime = (timestamp as dynamic).toDate();
+    return DateFormat('HH:mm').format(dateTime);
   }
 
   @override
@@ -31,36 +25,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chats'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshMatches,
-          ),
-        ],
       ),
-      body: FutureBuilder<List<(UserProfile, String)>>(
-        future: _matchesFuture,
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _chatService.getMatchesStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           
           if (snapshot.hasError) {
-            debugPrint("ChatListScreen Error: ${snapshot.error}");
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                  const SizedBox(height: 16),
-                  const Text('Gagal memuat matches.'),
-                  TextButton(
-                    onPressed: _refreshMatches,
-                    child: const Text('Coba Lagi'),
-                  ),
-                ],
-              ),
-            );
+            return Center(child: Text('Gagal memuat matches: ${snapshot.error}'));
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -70,15 +44,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 children: [
                   Icon(Icons.favorite_border, color: Colors.grey, size: 64),
                   const SizedBox(height: 16),
-                  Text(
-                    'Belum ada matches',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
+                  Text('Belum ada matches', style: TextStyle(fontSize: 18, color: Colors.grey)),
                   const SizedBox(height: 8),
-                  Text(
-                    'Terus geser untuk menemukan pasangan!',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  Text('Terus geser untuk menemukan pasangan!', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             );
@@ -89,27 +57,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
           return ListView.builder(
             itemCount: matches.length,
             itemBuilder: (context, index) {
-              final user = matches[index].$1;
-              final matchId = matches[index].$2;
+              final match = matches[index];
+              final UserProfile user = match['profile'];
+              final String matchId = match['matchId'];
+              final String lastMsg = match['lastMessage'];
+              final String time = _formatTimestamp(match['lastMessageTimestamp']);
 
               return ListTile(
                 leading: CircleAvatar(
                   radius: 30,
-                  backgroundImage: user.photos.isNotEmpty
-                      ? NetworkImage(user.photos[0])
-                      : null,
+                  backgroundImage: user.photos.isNotEmpty ? NetworkImage(user.photos[0]) : null,
                   child: user.photos.isEmpty ? const Icon(Icons.person) : null,
                 ),
                 title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Ketuk untuk memulai chat'),
+                subtitle: Text(
+                  lastMsg,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                trailing: Text(time, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 onTap: () {
-                   context.go(
-                    '/chat',
-                    extra: {
-                      'matchId': matchId,
-                      'otherUser': user,
-                    },
-                  );
+                   context.go('/chat', extra: {'matchId': matchId, 'otherUser': user});
                 },
               );
             },

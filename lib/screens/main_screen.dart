@@ -65,6 +65,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 Build screens list inside build method to keep BottomNavigationBar sticky
     final List<Widget> screens = [
       const MatchScreen(),
       const ExploreScreen(),
@@ -85,6 +86,7 @@ class _MainScreenState extends State<MainScreen> {
     if (safeIndex >= screens.length) safeIndex = 0;
 
     return Scaffold(
+      // Keep BottomNavigationBar always at the bottom by wrapping the body
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : IndexedStack(
@@ -95,7 +97,11 @@ class _MainScreenState extends State<MainScreen> {
         type: BottomNavigationBarType.fixed,
         items: navItems,
         currentIndex: safeIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
         selectedItemColor: Theme.of(context).primaryColor,
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,

@@ -8,55 +8,41 @@ class ChatService {
 
   String? get _currentUserId => _auth.currentUser?.uid;
 
-  // Get a list of matched users to display on the chat list screen.
-  Future<List<(UserProfile, String)>> getMatches() async {
-    if (_currentUserId == null) return [];
+  // 🔥 REAL-TIME: Ambil daftar match sebagai Stream
+  Stream<List<Map<String, dynamic>>> getMatchesStream() {
+    if (_currentUserId == null) return Stream.value([]);
 
-    try {
-      final matchesSnapshot = await _firestore
-          .collection('matches')
-          .where('users', arrayContains: _currentUserId)
-          .get();
+    return _firestore
+        .collection('matches')
+        .where('users', arrayContains: _currentUserId)
+        .orderBy('lastMessageTimestamp', descending: true) // Pesan terbaru di atas
+        .snapshots()
+        .asyncMap((snapshot) async {
+      List<Map<String, dynamic>> matchesWithProfiles = [];
 
-      if (matchesSnapshot.docs.isEmpty) return [];
-
-      List<String> otherUserIds = [];
-      Map<String, String> matchIdMap = {}; // Map otherUserId -> matchId
-
-      for (var doc in matchesSnapshot.docs) {
-        final List<String> users = List<String>.from(doc.data()['users'] ?? []);
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final List<String> users = List<String>.from(data['users'] ?? []);
         final otherId = users.firstWhere((id) => id != _currentUserId, orElse: () => '');
+
         if (otherId.isNotEmpty) {
-          otherUserIds.add(otherId);
-          matchIdMap[otherId] = doc.id;
+          // Ambil profil user lawan bicara
+          final profileDoc = await _firestore.collection('profiles').doc(otherId).get();
+          if (profileDoc.exists) {
+            final profile = UserProfile.fromFirestore(profileDoc);
+            matchesWithProfiles.add({
+              'profile': profile,
+              'matchId': doc.id,
+              'lastMessage': data['lastMessage'] ?? 'Kalian telah cocok! Silakan mulai menyapa.',
+              'lastMessageTimestamp': data['lastMessageTimestamp'],
+            });
+          }
         }
       }
-
-      if (otherUserIds.isEmpty) return [];
-
-      // Ambil profil dari koleksi 'profiles' (BUKAN 'users')
-      final profilesSnapshot = await _firestore
-          .collection('profiles')
-          .where(FieldPath.documentId, whereIn: otherUserIds)
-          .get();
-
-      final List<(UserProfile, String)> results = [];
-      for (var doc in profilesSnapshot.docs) {
-        final profile = UserProfile.fromFirestore(doc);
-        final mId = matchIdMap[profile.uid];
-        if (mId != null) {
-          results.add((profile, mId));
-        }
-      }
-
-      return results;
-    } catch (e) {
-      print("ChatService Error: $e");
-      rethrow;
-    }
+      return matchesWithProfiles;
+    });
   }
 
-  // Get a real-time stream of messages for a specific match.
   Stream<QuerySnapshot> getMessages(String matchId) {
     return _firestore
         .collection('matches')
@@ -66,23 +52,29 @@ class ChatService {
         .snapshots();
   }
 
-  // Send a new message.
   Future<void> sendMessage(String matchId, String text) async {
     if (_currentUserId == null || text.trim().isEmpty) return;
 
-    await _firestore
-        .collection('matches')
-        .doc(matchId)
-        .collection('messages')
-        .add({
+    final messageData = {
       'senderId': _currentUserId,
       'text': text,
-      'createdAt': Timestamp.now(),
-    });
-    
-    await _firestore.collection('matches').doc(matchId).update({
-      'lastMessage': text,
-      'lastMessageTimestamp': Timestamp.now(),
-    });
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    try {
+      await _firestore
+          .collection('matches')
+          .doc(matchId)
+          .collection('messages')
+          .add(messageData);
+      
+      await _firestore.collection('matches').doc(matchId).update({
+        'lastMessage': text,
+        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print("SendMessage Error: $e");
+      rethrow;
+    }
   }
 }

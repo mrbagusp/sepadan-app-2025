@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:sepadan/models/user_profile.dart';
@@ -21,9 +20,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
   void _sendMessage() {
-    if (_messageController.text.isNotEmpty) {
-      _chatService.sendMessage(widget.matchId, _messageController.text);
+    final String text = _messageController.text.trim();
+    if (text.isNotEmpty) {
       _messageController.clear();
+      _chatService.sendMessage(widget.matchId, text);
     }
   }
 
@@ -31,8 +31,17 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.otherUser.name),
-        leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundImage: widget.otherUser.photos.isNotEmpty ? NetworkImage(widget.otherUser.photos[0]) : null,
+              child: widget.otherUser.photos.isEmpty ? const Icon(Icons.person, size: 20) : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(widget.otherUser.name, overflow: TextOverflow.ellipsis)),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -40,22 +49,27 @@ class _ChatScreenState extends State<ChatScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: _chatService.getMessages(widget.matchId),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('Say hello!'));
+                
+                final docs = snapshot.data?.docs ?? [];
+                
+                if (docs.isEmpty) {
+                  return const Center(child: Text('Mulai percakapan dengan menyapa!'));
                 }
-
-                final messages = snapshot.data!.docs;
 
                 return ListView.builder(
                   reverse: true,
-                  itemCount: messages.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message['senderId'] == _currentUserId;
-                    return _buildMessageBubble(message, isMe);
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final bool isMe = data['senderId'] == _currentUserId;
+                    return _buildMessageBubble(data['text'] ?? '', isMe);
                   },
                 );
               },
@@ -67,47 +81,66 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(QueryDocumentSnapshot message, bool isMe) {
-    final alignment = isMe ? Alignment.centerRight : Alignment.centerLeft;
-    final color = isMe ? Theme.of(context).primaryColor : Colors.grey[300];
-    final textColor = isMe ? Colors.white : Colors.black;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      alignment: alignment,
+  Widget _buildMessageBubble(String text, bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
+          color: isMe ? Theme.of(context).primaryColor : Colors.grey[200],
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: isMe ? const Radius.circular(16) : Radius.zero,
+            bottomRight: isMe ? Radius.zero : const Radius.circular(16),
+          ),
         ),
-        child: Text(message['text'], style: TextStyle(color: textColor)),
+        child: Text(
+          text,
+          style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 15),
+        ),
       ),
     );
   }
 
   Widget _buildMessageInput() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              decoration: const InputDecoration(
-                hintText: 'Type a message...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(20)),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                decoration: InputDecoration(
+                  hintText: 'Tulis pesan...',
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
+                onSubmitted: (_) => _sendMessage(),
               ),
-              onSubmitted: (_) => _sendMessage(),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.send),
-            onPressed: _sendMessage,
-          ),
-        ],
+            const SizedBox(width: 8),
+            CircleAvatar(
+              backgroundColor: Theme.of(context).primaryColor,
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.white),
+                onPressed: _sendMessage,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
