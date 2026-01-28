@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'user_management_screen.dart';
 import 'moderation_screen.dart';
 import 'daily_devo_management_screen.dart';
+import 'payment_gateway_settings_screen.dart';
 import 'dummy_data_generator.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -10,7 +11,7 @@ class AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4, // 🔥 Diubah dari 3 menjadi 4
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
@@ -34,6 +35,7 @@ class AdminDashboard extends StatelessWidget {
               Tab(icon: Icon(Icons.people, color: Colors.white), text: 'Users'),
               Tab(icon: Icon(Icons.gavel, color: Colors.white), text: 'Moderation'),
               Tab(icon: Icon(Icons.book, color: Colors.white), text: 'Daily Devo'),
+              Tab(icon: Icon(Icons.payment, color: Colors.white), text: 'Payments'), // 🔥 Tab Baru
             ],
           ),
         ),
@@ -42,6 +44,7 @@ class AdminDashboard extends StatelessWidget {
             UserManagementScreen(),
             ModerationScreen(),
             DailyDevoManagementScreen(),
+            PaymentGatewaySettingsScreen(), // 🔥 Halaman Baru
           ],
         ),
       ),
