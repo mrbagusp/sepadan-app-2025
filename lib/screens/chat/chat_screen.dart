@@ -19,12 +19,40 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final String text = _messageController.text.trim();
     if (text.isNotEmpty) {
       _messageController.clear();
-      _chatService.sendMessage(widget.matchId, text);
+      await _chatService.sendMessage(widget.matchId, text);
+
+      // 🔥 SIMULASI TESTING: Jika chat ke user dummy, kirim balasan otomatis
+      if (widget.otherUser.uid.contains('dummy')) {
+        _simulateDummyReply(text);
+      }
     }
+  }
+
+  void _simulateDummyReply(String userMsg) async {
+    await Future.delayed(const Duration(seconds: 2));
+    
+    // Kirim pesan atas nama Dummy User
+    final replyData = {
+      'senderId': widget.otherUser.uid,
+      'text': "Puji Tuhan! Saya ${widget.otherUser.name} telah menerima pesan Anda: '$userMsg'. Mari bertumbuh bersama.",
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await FirebaseFirestore.instance
+        .collection('matches')
+        .doc(widget.matchId)
+        .collection('messages')
+        .add(replyData);
+
+    // Update info terakhir di dokumen match
+    await FirebaseFirestore.instance.collection('matches').doc(widget.matchId).update({
+      'lastMessage': replyData['text'],
+      'lastMessageTimestamp': FieldValue.serverTimestamp(),
+    });
   }
 
   @override
@@ -49,18 +77,11 @@ class _ChatScreenState extends State<ChatScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: _chatService.getMessages(widget.matchId),
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                 
                 final docs = snapshot.data?.docs ?? [];
-                
-                if (docs.isEmpty) {
-                  return const Center(child: Text('Mulai percakapan dengan menyapa!'));
-                }
+                if (docs.isEmpty) return const Center(child: Text('Mulai percakapan dengan menyapa!'));
 
                 return ListView.builder(
                   reverse: true,
@@ -97,10 +118,7 @@ class _ChatScreenState extends State<ChatScreen> {
             bottomRight: isMe ? Radius.zero : const Radius.circular(16),
           ),
         ),
-        child: Text(
-          text,
-          style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 15),
-        ),
+        child: Text(text, style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 15)),
       ),
     );
   }

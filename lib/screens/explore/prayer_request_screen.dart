@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'upgrade_screen.dart';
+import 'create_prayer_screen.dart';
 
 class PrayerRequestScreen extends StatefulWidget {
   const PrayerRequestScreen({super.key});
@@ -11,26 +13,7 @@ class PrayerRequestScreen extends StatefulWidget {
 }
 
 class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
-  final List<Map<String, dynamic>> dummyPrayers = [
-    {
-      'title': 'Kesembuhan Orang Tua',
-      'author': 'Andi',
-      'details': 'Mohon doa untuk kesembuhan ayah saya yang sedang dirawat di RS karena sakit jantung.',
-      'status': 'urgent',
-      'prayCount': 12,
-      'comments': ['Amin, Tuhan memberkati', 'Semangat bro Andi!'],
-    },
-    {
-      'title': 'Pekerjaan Baru',
-      'author': 'Sari',
-      'details': 'Mohon dukungan doa agar proses interview pekerjaan saya besok berjalan lancar.',
-      'status': 'normal',
-      'prayCount': 5,
-      'comments': ['Semoga lancar ya kak'],
-    },
-  ];
-
-  final Map<int, TextEditingController> _commentControllers = {};
+  final Map<String, TextEditingController> _commentControllers = {};
 
   void _showPremiumPopup() {
     showDialog(
@@ -66,7 +49,9 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
   @override
   Widget build(BuildContext context) {
     final userProfile = Provider.of<UserProfile?>(context);
+    final bool isAdmin = userProfile?.role == 'admin';
     final bool isPremium = userProfile?.isPremium ?? false;
+    final bool hasFullAccess = isAdmin || isPremium;
 
     return Scaffold(
       appBar: AppBar(
@@ -75,103 +60,139 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: dummyPrayers.length,
-              itemBuilder: (context, index) {
-                final prayer = dummyPrayers[index];
-                final bool isUrgent = prayer['status'] == 'urgent';
-                
-                if (!_commentControllers.containsKey(index)) {
-                  _commentControllers[index] = TextEditingController();
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('prayer_requests')
+                  .where('approved', isEqualTo: true)
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  // 🔥 Tampilkan error spesifik (misal: "Index required")
+                  return Center(child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Text('Error: ${snapshot.error}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                  ));
                 }
 
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: isUrgent ? const BorderSide(color: Colors.red, width: 1) : BorderSide.none,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                final docs = snapshot.data?.docs ?? [];
+                
+                if (docs.isEmpty) {
+                  return const Center(child: Text('Belum ada pokok doa yang disetujui.'));
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data() as Map<String, dynamic>;
+                    final String prayerId = doc.id;
+                    final bool isUrgent = data['isUrgent'] ?? false;
+                    final List<String> comments = List<String>.from(data['comments'] ?? []);
+                    final int prayCount = data['prayCount'] ?? 0;
+
+                    if (!_commentControllers.containsKey(prayerId)) {
+                      _commentControllers[prayerId] = TextEditingController();
+                    }
+
+                    return Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: isUrgent ? const BorderSide(color: Colors.red, width: 1) : BorderSide.none,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              prayer['title']!,
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            if (isUrgent)
-                              const Chip(
-                                label: Text('URGENT', style: TextStyle(color: Colors.white, fontSize: 10)),
-                                backgroundColor: Colors.red,
-                                padding: EdgeInsets.zero,
-                              ),
-                          ],
-                        ),
-                        Text('Oleh: ${prayer['author']}', style: TextStyle(color: Colors.grey[600])),
-                        const SizedBox(height: 12),
-                        Text(prayer['details']!),
-                        const SizedBox(height: 12),
-                        
-                        Row(
-                          children: [
-                            TextButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  prayer['prayCount']++;
-                                });
-                              },
-                              icon: const Icon(Icons.front_hand, size: 18),
-                              label: Text('Mendoakan (${prayer['prayCount']})'),
-                            ),
-                          ],
-                        ),
-                        
-                        const Divider(),
-                        const Text('Komentar:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ... (prayer['comments'] as List<String>).map((c) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Text('- $c', style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                        )).toList(),
-                        
-                        if (isPremium)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Row(
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
-                                  child: TextField(
-                                    controller: _commentControllers[index],
-                                    decoration: const InputDecoration(
-                                      hintText: 'Tulis komentar...',
-                                      hintStyle: TextStyle(fontSize: 12),
-                                      isDense: true,
-                                    ),
+                                  child: Text(
+                                    data['title'] ?? '',
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.send, color: Colors.blue, size: 20),
+                                if (isUrgent)
+                                  const Chip(
+                                    label: Text('URGENT', style: TextStyle(color: Colors.white, fontSize: 10)),
+                                    backgroundColor: Colors.red,
+                                    padding: EdgeInsets.zero,
+                                  ),
+                              ],
+                            ),
+                            Text('Oleh: ${data['userName'] ?? 'Anonymous'}', style: TextStyle(color: Colors.grey[600])),
+                            const SizedBox(height: 12),
+                            Text(data['details'] ?? ''),
+                            const SizedBox(height: 12),
+                            
+                            Row(
+                              children: [
+                                TextButton.icon(
                                   onPressed: () {
-                                    final val = _commentControllers[index]!.text;
-                                    if (val.isNotEmpty) {
-                                      setState(() {
-                                        prayer['comments'].add(val);
-                                        _commentControllers[index]!.clear();
-                                      });
-                                    }
+                                    FirebaseFirestore.instance
+                                        .collection('prayer_requests')
+                                        .doc(prayerId)
+                                        .update({'prayCount': FieldValue.increment(1)});
                                   },
+                                  icon: const Icon(Icons.front_hand, size: 18),
+                                  label: Text('Mendoakan ($prayCount)'),
                                 ),
                               ],
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
+                            
+                            const Divider(),
+                            const Text('Komentar:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            ... comments.map((c) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text('- $c', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                            )).toList(),
+                            
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _commentControllers[prayerId],
+                                      decoration: const InputDecoration(
+                                        hintText: 'Tulis komentar...',
+                                        hintStyle: TextStyle(fontSize: 12),
+                                        isDense: true,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.send, color: Colors.blue, size: 20),
+                                    onPressed: () {
+                                      final val = _commentControllers[prayerId]!.text.trim();
+                                      if (val.isNotEmpty) {
+                                        FirebaseFirestore.instance
+                                            .collection('prayer_requests')
+                                            .doc(prayerId)
+                                            .update({
+                                          'comments': FieldValue.arrayUnion([val])
+                                        });
+                                        _commentControllers[prayerId]!.clear();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -181,10 +202,10 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          if (!isPremium) {
+          if (!hasFullAccess) {
             _showPremiumPopup();
           } else {
-            // Flow submit prayer (premium only)
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const CreatePrayerScreen()));
           }
         },
         child: const Icon(Icons.add),

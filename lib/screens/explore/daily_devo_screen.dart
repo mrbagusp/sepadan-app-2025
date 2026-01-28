@@ -15,52 +15,58 @@ class DailyDevoScreen extends StatefulWidget {
 class _DailyDevoScreenState extends State<DailyDevoScreen> {
   @override
   Widget build(BuildContext context) {
-    // Gracefully handle potential missing providers
     UserProfile? userProfile;
     FirestoreService? firestoreService;
     
     try {
       userProfile = Provider.of<UserProfile?>(context);
       firestoreService = Provider.of<FirestoreService>(context);
-    } catch (_) {
-      // Providers not found, will use dummy data
-    }
+    } catch (_) {}
 
+    final bool isAdmin = userProfile?.role == 'admin';
     final bool isPremium = userProfile?.isPremium ?? false;
+    final bool hasFullAccess = isAdmin || isPremium;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Daily Devotional'),
       ),
-      body: firestoreService == null 
-        ? _buildDummyList()
-        : StreamBuilder<List<DailyDevo>>(
-            stream: isPremium 
-                ? firestoreService.getDevotionals() 
-                : firestoreService.getLatestDevotional(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                return _buildDummyList();
-              }
+      body: Column(
+        children: [
+          Expanded(
+            child: firestoreService == null 
+              ? _buildDummyList(hasFullAccess)
+              : StreamBuilder<List<DailyDevo>>(
+                  stream: hasFullAccess 
+                      ? firestoreService.getDevotionals() 
+                      : firestoreService.getLatestDevotional(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                      return _buildDummyList(hasFullAccess);
+                    }
 
-              final devos = snapshot.data!;
+                    final devos = snapshot.data!;
 
-              return ListView.builder(
-                itemCount: devos.length + (isPremium ? 0 : 1), 
-                itemBuilder: (context, index) {
-                  if (!isPremium && index == devos.length) {
-                    return _buildUpgradeCard(context);
-                  }
-                  
-                  final devo = devos[index];
-                  return _buildDevoCard(devo);
-                },
-              );
-            },
+                    return ListView.builder(
+                      itemCount: devos.length + (hasFullAccess ? 0 : 1), 
+                      itemBuilder: (context, index) {
+                        if (!hasFullAccess && index == devos.length) {
+                          return _buildUpgradeCard(context);
+                        }
+                        
+                        final devo = devos[index];
+                        return _buildDevoCard(devo);
+                      },
+                    );
+                  },
+                ),
           ),
+          _buildPremiumBanner(),
+        ],
+      ),
     );
   }
 
@@ -83,7 +89,7 @@ class _DailyDevoScreenState extends State<DailyDevoScreen> {
     );
   }
 
-  Widget _buildDummyList() {
+  Widget _buildDummyList(bool hasFullAccess) {
     return ListView(
       children: [
         _buildDevoCard(DailyDevo(
@@ -100,7 +106,7 @@ class _DailyDevoScreenState extends State<DailyDevoScreen> {
           author: 'Admin Sepadan',
           date: DateTime.now().subtract(const Duration(days: 1)),
         )),
-        _buildUpgradeCard(context),
+        if (!hasFullAccess) _buildUpgradeCard(context),
       ],
     );
   }
@@ -123,11 +129,8 @@ class _DailyDevoScreenState extends State<DailyDevoScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8.0),
-            Text(
+            const Text(
               'Upgrade to a premium account to access our full library of daily devotionals and other exclusive content.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSecondaryContainer,
-              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24.0),
@@ -142,6 +145,19 @@ class _DailyDevoScreenState extends State<DailyDevoScreen> {
             )
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      color: Colors.amber.shade100,
+      child: const Text(
+        'Become Premium Member is Support Ministry to Get More Blessings',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
       ),
     );
   }
