@@ -8,11 +8,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sepadan/models/user_preferences.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/services/profile_service.dart';
+import 'package:sepadan/services/notification_service.dart';
 
 class ProfileNotifier extends ChangeNotifier {
   final ProfileService _profileService = ProfileService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final NotificationService _notificationService = NotificationService();
 
   UserProfile? _userProfile;
   UserProfile? get userProfile => _userProfile;
@@ -36,6 +38,11 @@ class ProfileNotifier extends ChangeNotifier {
   String gender = 'male';
   GeoPoint? _location;
   GeoPoint? get location => _location;
+
+  // Notification settings
+  bool notifyDailyDevo = true;
+  bool notifyNewMatch = true;
+  bool notifyNewMessage = true;
 
   // Preferences data
   RangeValues _preferredAgeRange = const RangeValues(25, 45);
@@ -94,11 +101,39 @@ class ProfileNotifier extends ChangeNotifier {
       _preferredDistance = _userPreferences!.maxDistanceKm.toDouble();
       _interestedInGender = _userPreferences!.preferredGender;
 
+      // Load notification settings from users collection
+      final user = _auth.currentUser;
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          final data = userDoc.data()!;
+          final settings = data['notificationSettings'] as Map<String, dynamic>?;
+          if (settings != null) {
+            notifyDailyDevo = settings['dailyDevo'] ?? true;
+            notifyNewMatch = settings['newMatch'] ?? true;
+            notifyNewMessage = settings['newMessage'] ?? true;
+          }
+        }
+      }
+
     } catch (e) {
       _setError('Failed to load data: $e');
     } finally {
       _setLoading(false);
     }
+  }
+
+  Future<void> updateNotification(String key, bool value) async {
+    if (key == 'dailyDevo') notifyDailyDevo = value;
+    if (key == 'newMatch') notifyNewMatch = value;
+    if (key == 'newMessage') notifyNewMessage = value;
+    notifyListeners();
+
+    await _notificationService.updateNotificationSettings(
+      dailyDevo: notifyDailyDevo,
+      newMatch: notifyNewMatch,
+      newMessage: notifyNewMessage,
+    );
   }
 
   Future<void> pickImage(int index) async {
@@ -173,7 +208,6 @@ class ProfileNotifier extends ChangeNotifier {
       List<String> photoUrls = [];
       for (var image in _images) {
         if (image is File) {
-          // Double check authentication before starting upload
           final currentUser = _auth.currentUser;
           if (currentUser == null) throw Exception("Session expired. Please login again.");
           
@@ -229,20 +263,12 @@ class ProfileNotifier extends ChangeNotifier {
   Future<String> _uploadImage(File imageFile, String userId) async {
     try {
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      // Format file sesuai instruksi rules: /profileImages/{uid}/profile_{timestamp}.jpg
       final String fileName = 'profile_$timestamp.jpg';
-      
       final storageRef = _storage.ref().child('profileImages').child(userId).child(fileName);
-      
-      final metadata = SettableMetadata(
-        contentType: 'image/jpeg',
-      );
-
+      final metadata = SettableMetadata(contentType: 'image/jpeg');
       final UploadTask uploadTask = storageRef.putFile(imageFile, metadata);
-      
       final TaskSnapshot snapshot = await uploadTask;
-      final String downloadUrl = await snapshot.ref.getDownloadURL();
-      return downloadUrl;
+      return await snapshot.ref.getDownloadURL();
     } catch (e) {
       debugPrint("Upload Error Details: $e");
       rethrow;

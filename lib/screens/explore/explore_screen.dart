@@ -5,6 +5,8 @@ import 'daily_devo_screen.dart';
 import 'prayer_request_screen.dart';
 import 'events_screen.dart';
 import 'testimonials_screen.dart';
+import 'tips_pdkt_screen.dart';
+import 'upgrade_screen.dart';
 import '../admin/admin_screen.dart';
 
 class ExploreScreen extends StatelessWidget {
@@ -39,39 +41,103 @@ class ExploreScreen extends StatelessWidget {
             ),
         ],
       ),
-      body: GridView.count(
-        padding: const EdgeInsets.all(16),
-        crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
+      body: Column(
         children: [
-          _buildMenuThumbnail(
-            context,
-            'Daily Devo',
-            Icons.book,
-            Colors.blue,
-            const DailyDevoScreen(),
+          Expanded(
+            child: GridView.count(
+              padding: const EdgeInsets.all(16),
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              children: [
+                _buildMenuThumbnail(
+                  context,
+                  'Daily Devo',
+                  Icons.book,
+                  Colors.blue,
+                  const DailyDevoScreen(),
+                ),
+                _buildMenuThumbnail(
+                  context,
+                  'Tips PDKT',
+                  Icons.lightbulb,
+                  Colors.purple,
+                  const TipsPdktScreen(),
+                ),
+                _buildMenuThumbnail(
+                  context,
+                  'Prayer Requests',
+                  Icons.front_hand,
+                  Colors.green,
+                  const PrayerRequestScreen(),
+                ),
+                _buildMenuThumbnail(
+                  context,
+                  'Events',
+                  Icons.event,
+                  Colors.orange,
+                  const EventsScreen(),
+                ),
+                _buildMenuThumbnail(
+                  context,
+                  'Testimonials',
+                  Icons.favorite,
+                  Colors.red,
+                  const TestimonialsScreen(),
+                ),
+              ],
+            ),
           ),
-          _buildMenuThumbnail(
-            context,
-            'Prayer Requests',
-            Icons.front_hand,
-            Colors.green,
-            const PrayerRequestScreen(),
-          ),
-          _buildMenuThumbnail(
-            context,
-            'Events',
-            Icons.event,
-            Colors.orange,
-            const EventsScreen(),
-          ),
-          _buildMenuThumbnail(
-            context,
-            'Testimonials',
-            Icons.favorite,
-            Colors.red,
-            const TestimonialsScreen(),
+          // 🔥 BOX BARU DI BOTTOM - FIXED OVERFLOW
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UpgradeScreen()),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade700],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.deepPurple.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.stars_rounded, color: Colors.amber, size: 24),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Support Ministry and Get More Blessings',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

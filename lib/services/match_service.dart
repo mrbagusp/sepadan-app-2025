@@ -4,12 +4,54 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/models/user_preferences.dart';
+import 'package:intl/intl.dart';
 
 class MatchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String? get _currentUserId => _auth.currentUser?.uid;
+
+  // 🔥 Fungsi untuk mengecek limit swipe harian
+  Future<bool> canSwipe() async {
+    if (_currentUserId == null) return false;
+
+    final userDoc = await _firestore.collection('users').doc(_currentUserId).get();
+    final bool isPremium = userDoc.data()?['isPremium'] == true;
+    final bool isAdmin = userDoc.data()?['isAdmin'] == true;
+
+    // Admin dan Premium bebas swipe
+    if (isPremium || isAdmin) return true;
+
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final statsDoc = await _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('daily_stats')
+        .doc(today)
+        .get();
+
+    if (!statsDoc.exists) return true;
+
+    final int swipeCount = statsDoc.data()?['swipeCount'] ?? 0;
+    return swipeCount < 50; // Limit 50 swipe per hari untuk user biasa
+  }
+
+  // 🔥 Fungsi untuk mencatat swipe
+  Future<void> _incrementSwipeCount() async {
+    if (_currentUserId == null) return;
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final docRef = _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('daily_stats')
+        .doc(today);
+
+    await docRef.set({
+      'swipeCount': FieldValue.increment(1),
+      'lastSwipe': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 
   Future<List<UserProfile>> getPotentialMatches() async {
     if (_currentUserId == null) return [];
@@ -88,7 +130,11 @@ class MatchService {
   Future<(bool, String?)> likeUser(String likedUserId) async {
     if (_currentUserId == null) return (false, null);
 
-    // 1. Simpan Like saya ke dia
+    // Cek limit sebelum like
+    if (!(await canSwipe())) {
+      throw Exception("DAILY_LIMIT_REACHED");
+    }
+
     await _firestore
         .collection('likes')
         .doc(_currentUserId)
@@ -96,7 +142,8 @@ class MatchService {
         .doc(likedUserId)
         .set({'timestamp': FieldValue.serverTimestamp()});
 
-    // 2. Cek apakah dia sudah Like saya (Mutual Check)
+    await _incrementSwipeCount(); // Catat swipe berhasil
+
     final otherUserLike = await _firestore
         .collection('likes')
         .doc(likedUserId)
@@ -105,8 +152,6 @@ class MatchService {
         .get();
 
     if (otherUserLike.exists) {
-      // 3. Buat Dokumen Match karena saling suka
-      // Gunakan urutan abjad UID agar ID Match selalu sama siapa pun yang swipe terakhir
       final List<String> pair = [_currentUserId!, likedUserId]..sort();
       final String matchId = pair.join('_');
 
@@ -125,11 +170,19 @@ class MatchService {
 
   Future<void> passUser(String passedUserId) async {
     if (_currentUserId == null) return;
+    
+    // Cek limit sebelum pass
+    if (!(await canSwipe())) {
+      throw Exception("DAILY_LIMIT_REACHED");
+    }
+
     await _firestore
         .collection('passes')
         .doc(_currentUserId)
         .collection('passedUsers')
         .doc(passedUserId)
         .set({'timestamp': FieldValue.serverTimestamp()});
+
+    await _incrementSwipeCount(); // Catat swipe berhasil
   }
 }

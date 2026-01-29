@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/services/chat_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
+import '../profile/other_user_profile_screen.dart'; // Import baru
 
 class ChatScreen extends StatefulWidget {
   final String matchId;
@@ -25,7 +27,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _messageController.clear();
       await _chatService.sendMessage(widget.matchId, text);
 
-      // 🔥 SIMULASI TESTING: Jika chat ke user dummy, kirim balasan otomatis
       if (widget.otherUser.uid.contains('dummy')) {
         _simulateDummyReply(text);
       }
@@ -34,21 +35,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _simulateDummyReply(String userMsg) async {
     await Future.delayed(const Duration(seconds: 2));
-    
-    // Kirim pesan atas nama Dummy User
     final replyData = {
       'senderId': widget.otherUser.uid,
       'text': "Puji Tuhan! Saya ${widget.otherUser.name} telah menerima pesan Anda: '$userMsg'. Mari bertumbuh bersama.",
       'createdAt': FieldValue.serverTimestamp(),
     };
-
-    await FirebaseFirestore.instance
-        .collection('matches')
-        .doc(widget.matchId)
-        .collection('messages')
-        .add(replyData);
-
-    // Update info terakhir di dokumen match
+    await FirebaseFirestore.instance.collection('matches').doc(widget.matchId).collection('messages').add(replyData);
     await FirebaseFirestore.instance.collection('matches').doc(widget.matchId).update({
       'lastMessage': replyData['text'],
       'lastMessageTimestamp': FieldValue.serverTimestamp(),
@@ -59,16 +51,30 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: widget.otherUser.photos.isNotEmpty ? NetworkImage(widget.otherUser.photos[0]) : null,
-              child: widget.otherUser.photos.isEmpty ? const Icon(Icons.person, size: 20) : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Text(widget.otherUser.name, overflow: TextOverflow.ellipsis)),
-          ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/main'),
+        ),
+        title: InkWell( // 🔥 Klik nama/foto untuk buka profil
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtherUserProfileScreen(profile: widget.otherUser),
+              ),
+            );
+          },
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: widget.otherUser.photos.isNotEmpty ? NetworkImage(widget.otherUser.photos[0]) : null,
+                child: widget.otherUser.photos.isEmpty ? const Icon(Icons.person, size: 20) : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(widget.otherUser.name, overflow: TextOverflow.ellipsis)),
+            ],
+          ),
         ),
       ),
       body: Column(
@@ -79,10 +85,8 @@ class _ChatScreenState extends State<ChatScreen> {
               builder: (context, snapshot) {
                 if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                
                 final docs = snapshot.data?.docs ?? [];
                 if (docs.isEmpty) return const Center(child: Text('Mulai percakapan dengan menyapa!'));
-
                 return ListView.builder(
                   reverse: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -139,12 +143,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 decoration: InputDecoration(
                   hintText: 'Tulis pesan...',
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25),
-                    borderSide: BorderSide.none,
-                  ),
+                  filled: true, fillColor: Colors.grey[100],
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
@@ -152,10 +152,7 @@ class _ChatScreenState extends State<ChatScreen> {
             const SizedBox(width: 8),
             CircleAvatar(
               backgroundColor: Theme.of(context).primaryColor,
-              child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
-                onPressed: _sendMessage,
-              ),
+              child: IconButton(icon: const Icon(Icons.send, color: Colors.white), onPressed: _sendMessage),
             ),
           ],
         ),

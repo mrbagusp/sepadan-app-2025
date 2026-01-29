@@ -1,12 +1,13 @@
-
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<void> init() async {
-    // Request permission for iOS/Android
-    await _firebaseMessaging.requestPermission(
+    NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
       announcement: false,
       badge: true,
@@ -16,26 +17,47 @@ class NotificationService {
       sound: true,
     );
 
-    // Handle notifications when the app is in the foreground
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Got a message whilst in the foreground!');
-      print('Message data: \${message.data}');
-
-      if (message.notification != null) {
-        print('Message also contained a notification: \${message.notification}');
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      String? token = await _firebaseMessaging.getToken();
+      if (token != null) {
+        _saveTokenToFirestore(token);
       }
+    }
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      // Handle foreground notifications
     });
 
-    // Handle notifications when the app is in the background or terminated
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('A new onMessageOpenedApp event was published!');
-      // TODO: Handle the notification tap event
+      // Handle background notification tap
     });
   }
 
-  Future<String?> getFcmToken() async {
-    String? token = await _firebaseMessaging.getToken();
-    print('FCM Token: \$token');
-    return token;
+  Future<void> _saveTokenToFirestore(String token) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await _firestore.collection('users').doc(user.uid).set({
+        'fcmToken': token,
+        'lastTokenUpdate': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  // Fungsi untuk update toggle notifikasi dari UI
+  Future<void> updateNotificationSettings({
+    required bool dailyDevo,
+    required bool newMatch,
+    required bool newMessage,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await _firestore.collection('users').doc(user.uid).set({
+        'notificationSettings': {
+          'dailyDevo': dailyDevo,
+          'newMatch': newMatch,
+          'newMessage': newMessage,
+        }
+      }, SetOptions(merge: true));
+    }
   }
 }

@@ -45,6 +45,27 @@ class _DailyDevoManagementScreenState extends State<DailyDevoManagementScreen> {
     }
   }
 
+  void _insertFormatting(String tag) {
+    final text = _contentController.text;
+    final selection = _contentController.selection;
+    
+    if (selection.start == -1) return;
+
+    final selectedText = selection.textInside(text);
+    final newText = text.replaceRange(
+      selection.start,
+      selection.end,
+      '<$tag>$selectedText</$tag>',
+    );
+
+    _contentController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+        offset: selection.start + tag.length + 2 + selectedText.length + tag.length + 3,
+      ),
+    );
+  }
+
   Future<void> _submitDevo() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -115,11 +136,34 @@ class _DailyDevoManagementScreenState extends State<DailyDevoManagementScreen> {
               validator: (val) => val!.isEmpty ? 'Please enter author' : null,
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _contentController,
-              decoration: const InputDecoration(labelText: 'Content', border: OutlineInputBorder()),
-              maxLines: 8,
-              validator: (val) => val!.isEmpty ? 'Please enter content' : null,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.format_bold),
+                      onPressed: () => _insertFormatting('b'),
+                      tooltip: 'Bold',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.format_italic),
+                      onPressed: () => _insertFormatting('i'),
+                      tooltip: 'Italic',
+                    ),
+                  ],
+                ),
+                TextFormField(
+                  controller: _contentController,
+                  decoration: const InputDecoration(
+                    labelText: 'Content',
+                    border: OutlineInputBorder(),
+                    hintText: 'Use <b>bold</b> and <i>italic</i> tags or use buttons above.',
+                  ),
+                  maxLines: 8,
+                  validator: (val) => val!.isEmpty ? 'Please enter content' : null,
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Row(

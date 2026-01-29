@@ -3,6 +3,7 @@ import 'user_management_screen.dart';
 import 'moderation_screen.dart';
 import 'daily_devo_management_screen.dart';
 import 'payment_gateway_settings_screen.dart';
+import 'tips_pdkt_management_screen.dart'; // Import baru
 import 'dummy_data_generator.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -11,7 +12,7 @@ class AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4, // 🔥 Diubah dari 3 menjadi 4
+      length: 5, // Diubah dari 4 menjadi 5
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
@@ -35,7 +36,8 @@ class AdminDashboard extends StatelessWidget {
               Tab(icon: Icon(Icons.people, color: Colors.white), text: 'Users'),
               Tab(icon: Icon(Icons.gavel, color: Colors.white), text: 'Moderation'),
               Tab(icon: Icon(Icons.book, color: Colors.white), text: 'Daily Devo'),
-              Tab(icon: Icon(Icons.payment, color: Colors.white), text: 'Payments'), // 🔥 Tab Baru
+              Tab(icon: Icon(Icons.lightbulb, color: Colors.white), text: 'Tips PDKT'), // Tab Baru
+              Tab(icon: Icon(Icons.payment, color: Colors.white), text: 'Payments'),
             ],
           ),
         ),
@@ -44,7 +46,8 @@ class AdminDashboard extends StatelessWidget {
             UserManagementScreen(),
             ModerationScreen(),
             DailyDevoManagementScreen(),
-            PaymentGatewaySettingsScreen(), // 🔥 Halaman Baru
+            TipsPdktManagementScreen(), // Halaman Baru
+            PaymentGatewaySettingsScreen(),
           ],
         ),
       ),
