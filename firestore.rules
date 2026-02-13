@@ -1,116 +1,85 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* ===================== HELPERS ===================== */
+    /* ================= HELPERS ================= */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Ambil data user dari koleksi 'users'
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    // Cek apakah user adalah Admin
     function isAdmin() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && getUserData().get('isAdmin', false) == true;
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
     }
 
-    // Cek apakah user adalah pemilik dokumen
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    /* ===== USERS, PROFILES, PREFERENCES ===== */
+    match /users/{userId} { 
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
+    }
+    match /profiles/{userId} { 
+      allow read: if isSignedIn(); 
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
+    }
+    match /preferences/{userId} { 
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
     }
 
-    // Cek status Premium
-    function isPremium() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && getUserData().get('isPremium', false) == true;
-    }
+    /* ===== MATCHES & MESSAGES ===== */
+    match /matches/{matchId} {
+      allow read, write: if isSignedIn() && (matchId.contains(request.auth.uid) || isAdmin());
 
-    /* ===================== USERS ===================== */
-    match /users/{userId} {
-      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow create: if isOwner(userId) || isAdmin();
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    /* ===================== PROFILES ===================== */
-    match /profiles/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isAdmin();
-    }
-
-    /* ===================== PREFERENCES ===================== */
-    match /preferences/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
-    }
-
-    /* ===================== LIKES & PASSES ===================== */
-    match /likes/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
-      match /likedUsers/{otherUserId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn() && (matchId.contains(request.auth.uid) || isAdmin());
       }
     }
 
-    match /passes/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
-      match /passedUsers/{otherUserId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+    /* ===== EXPLORE CONTENT & TIPS PDKT ===== */
+    match /daily_devotionals/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /dating_tips/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    
+    match /prayer_requests/{id} { 
+      allow read: if isSignedIn(); 
+      allow create: if isSignedIn(); 
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.submittedBy == request.auth.uid); 
+    }
+    
+    match /events/{id} { 
+      allow read: if isSignedIn(); 
+      allow create: if isSignedIn(); 
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.submittedBy == request.auth.uid); 
+    }
+    
+    match /testimonials/{id} { 
+      allow read: if isSignedIn(); 
+      allow create: if isSignedIn(); 
+      allow update, delete: if isAdmin(); 
+    }
+
+    /* ===== LIKES & PASSES (FIXED FOR MATCHING) ===== */
+    match /likes/{userId} { 
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
+      
+      match /liked/{targetId} {
+        // 🔥 KRUSIAL: Izinkan target (orang yang di-like) membaca data ini untuk memicu proses MATCH
+        // User A me-like User B (targetId). User B harus bisa baca ini.
+        allow read: if isSignedIn() && (request.auth.uid == userId || request.auth.uid == targetId || isAdmin());
+        allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       }
     }
     
-    /* ===================== CONTENT MODERATION ===================== */
+    match /passes/{userId}/{allPaths=**} { 
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
+    }
 
-    match /daily_devotionals/{devoId} {
+    /* ===== SETTINGS (ADMIN) ===== */
+    match /settings/{id} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    function contentApproved() {
-      return resource.data.get('approved', false) == true;
-    }
-
-    match /prayer_requests/{id} {
-      allow read: if isSignedIn() && (contentApproved() || isOwner(resource.data.get('submittedBy', '')) || isAdmin());
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin() || (isSignedIn() && isOwner(resource.data.get('submittedBy', '')));
-    }
-
-    match /events/{id} {
-      allow read: if isSignedIn() && (contentApproved() || isOwner(resource.data.get('submittedBy', '')) || isAdmin());
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin() || (isSignedIn() && isOwner(resource.data.get('submittedBy', '')));
-    }
-
-    match /testimonials/{id} {
-      allow read: if isSignedIn() && (contentApproved() || isOwner(resource.data.get('submittedBy', '')) || isAdmin());
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin() || (isSignedIn() && isOwner(resource.data.get('submittedBy', '')));
-    }
-
-    /* ===================== MATCHES & CHATS ===================== */
-
-    match /matches/{matchId} {
-      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.get('users', []) || request.auth.uid in resource.data.get('userIds', []) || isAdmin());
-      allow create: if isSignedIn();
-      allow delete: if isAdmin();
-    }
-
-    match /chats/{chatId} {
-      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.get('userIds', []) || isAdmin());
-      allow create: if isSignedIn();
-      
-      match /messages/{messageId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn();
-      }
+    /* ===== FALLBACK ===== */
+    match /{allPaths=**} {
+      allow read, write: if isSignedIn() && isAdmin();
     }
   }
 }

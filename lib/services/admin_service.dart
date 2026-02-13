@@ -29,7 +29,7 @@ class AdminService {
     await _firestore
         .collection('likes')
         .doc(dummyUid)
-        .collection('likedUsers')
+        .collection('liked')
         .doc(adminUid)
         .set({
       'timestamp': FieldValue.serverTimestamp(),

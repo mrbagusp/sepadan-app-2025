@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "20264636038-8kupf0etfsoipt37nevde1c1cuchsddb.apps.googleusercontent.com",
+          "client_id": "20264636038-sm0hrv3klge838quhbv7tfrps9qgjg4g.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.sepadan.app",
-            "certificate_hash": "b8a1a9896632bbbf11f6b2c271701d6d2c1670fa"
+            "certificate_hash": "01926f2252780c9bd5428da1c68c560d4c92c066"
           }
         },
         {

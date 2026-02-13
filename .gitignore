@@ -45,3 +45,21 @@ app.*.map.json
 /android/app/release
 # Firebase Functions
 functions/node_modules/
+dartsdk-windows-x64-release/
+dartsdk-windows-x64-release.zip
+
+android/app/google-services.json
+android/app/*.jks
+ios/Runner/GoogleService-Info.plist
+.env
+functions/node_modules/
+
+dartsdk-windows-x64-release/
+dartsdk-windows-x64-release.zip
+.build/
+.dart_tool/
+functions/node_modules/
+android/app/google-services.json
+*.jks
+
+

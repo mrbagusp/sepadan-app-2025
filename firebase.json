@@ -1,1 +1,32 @@
-{"functions":{"predeploy":["npm --prefix \"$RESOURCE_DIR\" run lint"],"source":"functions"},"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"]},"firestore":{"database":"(default)","location":"nam5","rules":"firestore.rules","indexes":"firestore.indexes.json"},"flutter":{"platforms":{"android":{"default":{"projectId":"sepadan-app-2025","appId":"1:20264636038:android:eb4dbf53073b4c08698b07","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"sepadan-app-2025","configurations":{"android":"1:20264636038:android:eb4dbf53073b4c08698b07","ios":"1:20264636038:ios:46d51fb774cea0a9698b07","web":"1:20264636038:web:13da525ad060d4dd698b07"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "privacy",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}

@@ -16,8 +16,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp == null) return '';
-    final DateTime dateTime = (timestamp as dynamic).toDate();
-    return DateFormat('HH:mm').format(dateTime);
+    try {
+      final DateTime dateTime = (timestamp as dynamic).toDate();
+      return DateFormat('HH:mm').format(dateTime);
+    } catch (e) {
+      return '';
+    }
   }
 
   @override
@@ -33,20 +37,29 @@ class _ChatListScreenState extends State<ChatListScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           
-          if (snapshot.hasError) {
-            return Center(child: Text('Gagal memuat matches: ${snapshot.error}'));
-          }
-
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          final bool hasData = snapshot.hasData && snapshot.data!.isNotEmpty;
+          
+          if (!hasData) {
+            // Log error if any, but show empty state UI
+            if (snapshot.hasError) {
+              debugPrint("ChatList Error: ${snapshot.error}");
+            }
+            
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.favorite_border, color: Colors.grey, size: 64),
                   const SizedBox(height: 16),
-                  Text('Belum ada matches', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                  Text(
+                    'Belum ada matches', 
+                    style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold)
+                  ),
                   const SizedBox(height: 8),
-                  Text('Terus geser untuk menemukan pasangan!', style: TextStyle(color: Colors.grey)),
+                  Text(
+                    'Terus geser untuk menemukan pasangan!', 
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
             );

@@ -33,7 +33,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Total Amount: Rp 99.000 / month',
+                'Total Amount: Rp 24.000 / month',
                 style: TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 40),
@@ -49,16 +49,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   onPressed: () async {
                     setState(() => _isProcessing = true);
                     
-                    // Simulate network delay
-                    await Future.delayed(const Duration(seconds: 2));
-                    
-                    if (mounted) {
-                      await context.read<PremiumNotifier>().upgradeToPremium();
+                    try {
+                      // Simulate network delay
+                      await Future.delayed(const Duration(seconds: 2));
+                      
                       if (mounted) {
+                        await context.read<PremiumNotifier>().upgradeToPremium();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Payment Successful! You are now Premium.'), backgroundColor: Colors.green),
+                          );
+                          context.go('/main');
+                        }
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        setState(() => _isProcessing = false);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Payment Successful! You are now Premium.'), backgroundColor: Colors.green),
+                          SnackBar(content: Text('Payment Failed: $e'), backgroundColor: Colors.red),
                         );
-                        context.go('/main');
                       }
                     }
                   },

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:sepadan/models/user_profile.dart';
+import 'package:sepadan/notifiers/premium_notifier.dart';
 import 'upgrade_screen.dart';
 import 'create_testimonial_screen.dart';
 
@@ -11,8 +12,10 @@ class TestimonialsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userProfile = Provider.of<UserProfile?>(context);
+    final premiumNotifier = Provider.of<PremiumNotifier>(context);
+    
     final bool isAdmin = userProfile?.role == 'admin';
-    final bool isPremium = userProfile?.isPremium ?? false;
+    final bool isPremium = premiumNotifier.isPremium;
     final bool hasFullAccess = isAdmin || isPremium;
 
     return Scaffold(
@@ -75,7 +78,7 @@ class TestimonialsScreen extends StatelessWidget {
               },
             ),
           ),
-          _buildPremiumBanner(),
+          if (!hasFullAccess) _buildPremiumBanner(context),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -111,15 +114,18 @@ class TestimonialsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPremiumBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      color: Colors.amber.shade100,
-      child: const Text(
-        'Become Premium Member is Support Ministry to Get More Blessings',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+  Widget _buildPremiumBanner(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const UpgradeScreen())),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        color: Colors.amber.shade100,
+        child: const Text(
+          'Become Premium Member is Support Ministry to Get More Blessings',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+        ),
       ),
     );
   }

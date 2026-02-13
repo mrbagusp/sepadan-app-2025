@@ -15,41 +15,54 @@ class MatchScreen extends StatefulWidget {
 }
 
 class _MatchScreenState extends State<MatchScreen> {
+  final CardSwiperController _controller = CardSwiperController();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<MatchNotifier>().fetchPotentialMatches();
+        context.read<MatchNotifier>().fetchPotentialMatches(clearExisting: true);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<MatchNotifier>(
       builder: (context, notifier, child) {
-        if (notifier.isMutualMatch && notifier.matchedUser != null && notifier.matchId != null) {
-          final matchedUser = notifier.matchedUser!;
-          final matchId = notifier.matchId!;
-          
+        // Tampilkan dialog match secara otomatis saat ada match baru
+        if (notifier.hasNewMatch && notifier.latestMatchId != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              _showMatchDialog(context, matchId, matchedUser);
-              notifier.resetMutualMatch();
+              _showMatchDialog(context, notifier.latestMatchId!, notifier.latestMatchedUser);
+              notifier.resetMatchNotification();
             }
           });
         }
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Find Your Match'),
+            title: const Text(
+              'Find Your Match',
+              style: TextStyle(
+                color: Colors.deepPurple,
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+              ),
+            ),
             elevation: 0,
             backgroundColor: Colors.transparent,
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: () => notifier.fetchPotentialMatches(),
+                icon: const Icon(Icons.refresh, color: Colors.deepPurple),
+                onPressed: () => notifier.fetchPotentialMatches(clearExisting: true),
               ),
             ],
           ),
@@ -73,10 +86,14 @@ class _MatchScreenState extends State<MatchScreen> {
             children: [
               const Icon(Icons.search_off, size: 64, color: Colors.grey),
               const SizedBox(height: 16),
-              const Text('No more profiles found.', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, color: Colors.grey)),
+              const Text(
+                'No more profiles found.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () => notifier.fetchPotentialMatches(),
+                onPressed: () => notifier.fetchPotentialMatches(clearExisting: true),
                 child: const Text('Refresh Search'),
               ),
             ],
@@ -89,15 +106,17 @@ class _MatchScreenState extends State<MatchScreen> {
       children: [
         Expanded(
           child: CardSwiper(
+            controller: _controller,
             cardsCount: notifier.profiles.length,
             numberOfCardsDisplayed: min(notifier.profiles.length, 3),
             onSwipe: (previousIndex, currentIndex, direction) {
               final didLike = direction == CardSwiperDirection.right;
-              notifier.swipe(previousIndex, didLike);
+              notifier.swipe(previousIndex ?? 0, didLike);
               return true;
             },
             cardBuilder: (context, index, percentThresholdX, percentThresholdY) {
-              return _buildProfileCard(context, notifier.profiles[index]);
+              final profile = notifier.profiles[index];
+              return _buildProfileCard(context, profile);
             },
             allowedSwipeDirection: const AllowedSwipeDirection.symmetric(horizontal: true),
           ),
@@ -110,6 +129,7 @@ class _MatchScreenState extends State<MatchScreen> {
 
   Widget _buildProfileCard(BuildContext context, UserProfile profile) {
     return Card(
+      key: ValueKey(profile.uid),
       elevation: 8,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -121,17 +141,41 @@ class _MatchScreenState extends State<MatchScreen> {
             Image.network(
               profile.photos[0],
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[300], child: const Icon(Icons.person, size: 100)),
+              errorBuilder: (context, error, stackTrace) => Container(
+                color: Colors.grey[300],
+                child: const Icon(Icons.person, size: 100),
+              ),
+            )
+          else
+            Container(color: Colors.grey[300], child: const Icon(Icons.person, size: 100)),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.transparent, Colors.black87],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0.6, 1.0],
+              ),
             ),
-          Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, Colors.black87], begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.6, 1.0]))),
+          ),
           Positioned(
-            bottom: 20, left: 20, right: 20,
+            bottom: 20,
+            left: 20,
+            right: 20,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${profile.name}, ${profile.age}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text(
+                  '${profile.name}, ${profile.age}',
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
                 const SizedBox(height: 8),
-                Text(profile.aboutMe, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, color: Colors.white70)),
+                Text(
+                  profile.aboutMe,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 16, color: Colors.white70),
+                ),
               ],
             ),
           ),
@@ -144,17 +188,36 @@ class _MatchScreenState extends State<MatchScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildActionButton(context, Icons.close, Colors.red, () => notifier.swipe(0, false)),
-        _buildActionButton(context, CupertinoIcons.heart_fill, Colors.green, () => notifier.swipe(0, true)),
+        _buildActionButton(
+          context,
+          Icons.close,
+          Colors.red,
+              () => _controller.swipe(CardSwiperDirection.left),
+        ),
+        _buildActionButton(
+          context,
+          CupertinoIcons.heart_fill,
+          Colors.green,
+              () => _controller.swipe(CardSwiperDirection.right),
+        ),
       ],
     );
   }
 
   Widget _buildActionButton(BuildContext context, IconData icon, Color color, VoidCallback onPressed) {
-    return ElevatedButton(onPressed: onPressed, style: ElevatedButton.styleFrom(shape: const CircleBorder(), padding: const EdgeInsets.all(20), backgroundColor: Theme.of(context).cardColor, elevation: 5), child: Icon(icon, color: color, size: 35));
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        shape: const CircleBorder(),
+        padding: const EdgeInsets.all(20),
+        backgroundColor: Theme.of(context).cardColor,
+        elevation: 5,
+      ),
+      child: Icon(icon, color: color, size: 35),
+    );
   }
 
-  void _showMatchDialog(BuildContext context, String matchId, UserProfile matchedUser) {
+  void _showMatchDialog(BuildContext context, String matchId, UserProfile? matchedUser) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -164,14 +227,20 @@ class _MatchScreenState extends State<MatchScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text("You and ${matchedUser.name} have liked each other."),
+            Text("You and ${matchedUser?.name ?? 'user baru'} have liked each other."),
             const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 const CircleAvatar(radius: 40, child: Icon(Icons.person)),
                 const Icon(CupertinoIcons.heart_fill, color: Colors.red, size: 30),
-                CircleAvatar(radius: 40, backgroundImage: matchedUser.photos.isNotEmpty ? NetworkImage(matchedUser.photos[0]) : null),
+                CircleAvatar(
+                  radius: 40,
+                  backgroundImage: matchedUser?.photos.isNotEmpty == true
+                      ? NetworkImage(matchedUser!.photos[0])
+                      : null,
+                  child: matchedUser?.photos.isEmpty == true ? const Icon(Icons.person) : null,
+                ),
               ],
             ),
           ],
@@ -180,7 +249,7 @@ class _MatchScreenState extends State<MatchScreen> {
           TextButton(
             child: const Text('Say Hello!'),
             onPressed: () {
-              Navigator.pop(dialogContext); // Tutup dialog dulu
+              Navigator.pop(dialogContext);
               context.go('/chat', extra: {'matchId': matchId, 'otherUser': matchedUser});
             },
           ),

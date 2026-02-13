@@ -47,14 +47,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       if (_formKey.currentState!.validate()) {
                         final success = await notifier.saveData();
                         if (success) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Profile & Preferences Saved Successfully!'), backgroundColor: Colors.green),
-                          );
-                          widget.onProfileUpdate?.call();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Profile & Preferences Saved Successfully!'), backgroundColor: Colors.green),
+                            );
+                            
+                            // Menjalankan callback update jika ada
+                            widget.onProfileUpdate?.call();
+                            
+                            // 🔥 FIX: Redirect otomatis ke Main Screen setelah berhasil simpan
+                            context.go('/main');
+                          }
                         } else if (notifier.errorMessage != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(notifier.errorMessage!), backgroundColor: Colors.red),
-                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(notifier.errorMessage!), backgroundColor: Colors.red),
+                            );
+                          }
                         }
                       }
                     },
@@ -223,7 +232,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           validator: (v) => v == null || v.isEmpty ? 'About Me is required' : null,
         ),
         const SizedBox(height: 16),
-        // 🔥 MANDATORY FIELD: Who is Jesus Christ to you?
         TextFormField(
           controller: notifier.faithAnswerController,
           decoration: const InputDecoration(
