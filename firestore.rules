@@ -2,84 +2,63 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* ================= HELPERS ================= */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     function isAdmin() {
-      return isSignedIn() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
     }
 
-    /* ===== USERS, PROFILES, PREFERENCES ===== */
-    match /users/{userId} { 
-      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
-    }
-    match /profiles/{userId} { 
-      allow read: if isSignedIn(); 
-      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
-    }
-    match /preferences/{userId} { 
-      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
+    /* ================= USERS ================= */
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin();
+
+      // 🔥 FIX: Tambah rules untuk statistik swipe harian
+      match /daily_stats/{today} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
     }
 
-    /* ===== MATCHES & MESSAGES ===== */
+    match /profiles/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    match /preferences/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    /* ================= LIKES ================= */
+    match /likes/{userId}/liked/{targetId} {
+      allow create, delete, read: if isOwner(userId) || isAdmin();
+    }
+
+    /* ================= PASSES ================= */
+    match /passes/{userId}/{allPaths=**} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    /* ================= MATCHES ================= */
     match /matches/{matchId} {
-      allow read, write: if isSignedIn() && (matchId.contains(request.auth.uid) || isAdmin());
+      allow read: if isSignedIn() && request.auth.uid in resource.data.users;
+      allow update: if isSignedIn() && request.auth.uid in resource.data.users;
+      allow create, delete: if false; // Hanya server (Cloud Function) yang boleh buat
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn() && (matchId.contains(request.auth.uid) || isAdmin());
+        // 🔥 OPTIMASI: Cek partisipasi tanpa 'get' dokumen induk jika memungkinkan
+        allow read, create: if isSignedIn() && (matchId.contains(request.auth.uid));
       }
     }
 
-    /* ===== EXPLORE CONTENT & TIPS PDKT ===== */
+    /* ================= CONTENT & SETTINGS ================= */
     match /daily_devotionals/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /dating_tips/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
-    
-    match /prayer_requests/{id} { 
-      allow read: if isSignedIn(); 
-      allow create: if isSignedIn(); 
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.submittedBy == request.auth.uid); 
-    }
-    
-    match /events/{id} { 
-      allow read: if isSignedIn(); 
-      allow create: if isSignedIn(); 
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.submittedBy == request.auth.uid); 
-    }
-    
-    match /testimonials/{id} { 
-      allow read: if isSignedIn(); 
-      allow create: if isSignedIn(); 
-      allow update, delete: if isAdmin(); 
-    }
+    match /prayer_requests/{id} { allow read, create: if isSignedIn(); allow update, delete: if isAdmin() || (isSignedIn() && resource.data.submittedBy == request.auth.uid); }
+    match /events/{id} { allow read, create: if isSignedIn(); allow update, delete: if isAdmin() || (isSignedIn() && resource.data.submittedBy == request.auth.uid); }
+    match /testimonials/{id} { allow read, create: if isSignedIn(); allow update, delete: if isAdmin(); }
+    match /settings/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
 
-    /* ===== LIKES & PASSES (FIXED FOR MATCHING) ===== */
-    match /likes/{userId} { 
-      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
-      
-      match /liked/{targetId} {
-        // 🔥 KRUSIAL: Izinkan target (orang yang di-like) membaca data ini untuk memicu proses MATCH
-        // User A me-like User B (targetId). User B harus bisa baca ini.
-        allow read: if isSignedIn() && (request.auth.uid == userId || request.auth.uid == targetId || isAdmin());
-        allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      }
-    }
-    
-    match /passes/{userId}/{allPaths=**} { 
-      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin()); 
-    }
-
-    /* ===== SETTINGS (ADMIN) ===== */
-    match /settings/{id} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    /* ===== FALLBACK ===== */
-    match /{allPaths=**} {
-      allow read, write: if isSignedIn() && isAdmin();
-    }
+    match /{allPaths=**} { allow read, write: if isAdmin(); }
   }
 }
