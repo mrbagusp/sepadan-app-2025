@@ -1,12 +1,13 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<void> init() async {
+  Future<void> init(BuildContext context) async {
     NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
       announcement: false,
@@ -24,13 +25,40 @@ class NotificationService {
       }
     }
 
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      // Handle foreground notifications
+    // Handle background notification tap
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      _handleNotificationClick(context, message);
     });
 
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      // Handle background notification tap
+    // Handle terminated state notification tap
+    RemoteMessage? initialMessage = await _firebaseMessaging.getInitialMessage();
+    if (initialMessage != null) {
+      _handleNotificationClick(context, initialMessage);
+    }
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      // Show local notification or snackbar if app is in foreground
+      if (message.notification != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message.notification!.title ?? 'Notifikasi Baru'),
+            action: SnackBarAction(
+              label: 'Buka',
+              onPressed: () => _handleNotificationClick(context, message),
+            ),
+          ),
+        );
+      }
     });
+  }
+
+  void _handleNotificationClick(BuildContext context, RemoteMessage message) {
+    if (message.data['type'] == 'daily_devo') {
+      // Navigasi ke Daily Devo Screen
+      Navigator.pushNamed(context, '/explore/daily-devo');
+    } else if (message.data['type'] == 'new_match') {
+      Navigator.pushNamed(context, '/chat');
+    }
   }
 
   Future<void> _saveTokenToFirestore(String token) async {
@@ -43,7 +71,6 @@ class NotificationService {
     }
   }
 
-  // Fungsi untuk update toggle notifikasi dari UI
   Future<void> updateNotificationSettings({
     required bool dailyDevo,
     required bool newMatch,
