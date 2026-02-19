@@ -43,10 +43,6 @@ void main() async {
     debugPrint('Stacktrace: $stackTrace');
   }
 
-  // 🔔 Init Notification
-  final notificationService = NotificationService();
-  await notificationService.init();
-
   final authService = AuthService();
   final userService = UserService();
   final firestoreService = FirestoreService();
@@ -66,7 +62,13 @@ void main() async {
           initialData: null,
         ),
       ],
-      child: const MyApp(),
+      builder: (context, child) {
+        // 🔔 Init Notification dengan context agar navigasi bisa berjalan
+        final notificationService = NotificationService();
+        notificationService.init(context);
+        
+        return const MyApp();
+      },
     ),
   );
 }

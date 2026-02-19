@@ -36,18 +36,18 @@ class ProfileService {
     await firestore
         .collection('profiles')
         .doc(currentUser!.uid)
-        .set(profile.toFirestore());
+        .set(profile.toFirestore(), SetOptions(merge: true));
   }
 
   Future<void> updateUserProfile(UserProfile profile) async {
     if (currentUser == null) return;
+    // 🔥 FIXED: Gunakan set dengan merge agar tidak error 'not-found' untuk user baru
     await firestore
         .collection('profiles')
         .doc(currentUser!.uid)
-        .update(profile.toFirestore());
+        .set(profile.toFirestore(), SetOptions(merge: true));
   }
 
-  // 🔥 IMPLEMENTASI BARU: saveUserProfile
   Future<void> saveUserProfile({
     required String name,
     required int age,
@@ -97,9 +97,10 @@ class ProfileService {
 
   Future<void> updateUserPreferences(UserPreferences preferences) async {
     if (currentUser == null) return;
+    // 🔥 FIXED: Gunakan merge true
     await firestore
         .collection('preferences')
         .doc(currentUser!.uid)
-        .set(preferences.toFirestore());
+        .set(preferences.toFirestore(), SetOptions(merge: true));
   }
 }

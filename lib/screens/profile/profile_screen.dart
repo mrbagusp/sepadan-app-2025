@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sepadan/screens/profile/profile_notifier.dart';
 import 'package:sepadan/services/auth_service.dart';
-import 'package:sepadan/services/notification_service.dart';
 import 'package:go_router/go_router.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -51,11 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Profile & Preferences Saved Successfully!'), backgroundColor: Colors.green),
                             );
-                            
-                            // Menjalankan callback update jika ada
                             widget.onProfileUpdate?.call();
-                            
-                            // 🔥 FIX: Redirect otomatis ke Main Screen setelah berhasil simpan
                             context.go('/main');
                           }
                         } else if (notifier.errorMessage != null) {
@@ -122,12 +117,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildNotificationSection(context, notifier),
           const SizedBox(height: 24),
           _buildLocationSection(context, notifier),
+          const SizedBox(height: 24),
+          _buildFeedbackSection(context, notifier), // 🔥 NEW
+          const SizedBox(height: 48),
+          _buildDangerZone(context, notifier), // 🔥 NEW
           const SizedBox(height: 48),
         ],
       ),
     );
   }
 
+  Widget _buildFeedbackSection(BuildContext context, ProfileNotifier notifier) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Help & Feedback', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        const Divider(height: 24),
+        const Text('Found a bug? Or have a suggestion for Sepadan?', style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: notifier.feedbackController,
+          decoration: const InputDecoration(
+            hintText: 'Describe your issue or suggestion here...',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.send),
+            label: const Text('Send to Admin'),
+            onPressed: () async {
+              final success = await notifier.sendFeedback();
+              if (success && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Thank you! Your feedback has been sent.'), backgroundColor: Colors.blue),
+                );
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDangerZone(BuildContext context, ProfileNotifier notifier) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Danger Zone', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 18)),
+        const Divider(color: Colors.red),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Delete Account', style: TextStyle(color: Colors.red)),
+          subtitle: const Text('Permanently remove your data and account'),
+          trailing: const Icon(Icons.delete_forever, color: Colors.red),
+          onTap: () => _showDeleteConfirmDialog(context, notifier),
+        ),
+      ],
+    );
+  }
+
+  void _showDeleteConfirmDialog(BuildContext context, ProfileNotifier notifier) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Permanently Delete Account?'),
+        content: const Text('This action cannot be undone. All your matches, chats, and profile data will be lost forever.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(context);
+              final success = await notifier.deleteAccount();
+              if (success && context.mounted) {
+                context.go('/login');
+              }
+            },
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Bagian lain (buildNotificationSection, buildPhotoGrid, dll) tetap sama
   Widget _buildNotificationSection(BuildContext context, ProfileNotifier notifier) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
