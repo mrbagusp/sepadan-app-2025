@@ -119,11 +119,13 @@ class ProfileNotifier extends ChangeNotifier {
         }
       }
 
-      // 🔥 Minta izin dan update lokasi otomatis saat aplikasi diakses (load data)
-      await updateLocation();
+      // Hanya update lokasi jika belum ada, agar tidak memperlambat loading awal
+      if (_location == null) {
+        updateLocation();
+      }
 
     } catch (e) {
-      _setError('Failed to load data: $e');
+      debugPrint("Load Data Error: $e");
     } finally {
       _setLoading(false);
     }
@@ -165,53 +167,36 @@ class ProfileNotifier extends ChangeNotifier {
   }
 
   Future<void> updateLocation() async {
-    _setLoading(true);
-    _setError(null);
     try {
-      // 1. Cek apakah layanan lokasi aktif di perangkat
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        throw Exception('Location services are disabled. Please enable GPS.');
-      }
+      if (!serviceEnabled) return;
 
-      // 2. Cek status izin saat ini
       LocationPermission permission = await Geolocator.checkPermission();
-      
-      // 3. Jika izin belum pernah ditanyakan, minta izin ke pengguna (muncul pop-up)
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          throw Exception('Location permissions are denied.');
-        }
+        if (permission == LocationPermission.denied) return;
       }
 
-      // 4. Jika izin diblokir secara permanen
-      if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied. Please enable them in app settings.');
-      }
+      if (permission == LocationPermission.deniedForever) return;
 
-      // 5. Ambil lokasi saat ini dengan akurasi rendah (lebih cepat)
+      // 🔥 Added 5 seconds timeout to prevent infinite hang
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 5),
       );
       
       _location = GeoPoint(position.latitude, position.longitude);
       
-      // 6. Jika profil sudah ada, langsung update lokasi ke Firestore secara background
       final user = _auth.currentUser;
       if (user != null && _userProfile != null) {
-        await _firestore.collection('profiles').doc(user.uid).update({
+        _firestore.collection('profiles').doc(user.uid).update({
           'location': _location,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
-      
       notifyListeners();
     } catch (e) {
-      debugPrint("Update Location Error: $e");
-      _setError(e.toString().replaceAll('Exception: ', ''));
-    } finally {
-      _setLoading(false);
+      debugPrint("Update Location Silently Failed: $e");
     }
   }
 
@@ -229,7 +214,7 @@ class ProfileNotifier extends ChangeNotifier {
         'message': message,
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'feedback_bug',
-      });
+      }).timeout(const Duration(seconds: 10));
       
       feedbackController.clear();
       return true;
@@ -266,23 +251,23 @@ class ProfileNotifier extends ChangeNotifier {
     _setError(null);
 
     final user = _auth.currentUser;
-    if (user == null) return false;
+    if (user == null) {
+      _setLoading(false);
+      return false;
+    }
     
     if (_location == null) {
-      // Coba minta lokasi sekali lagi sebelum simpan
-      await updateLocation();
-      if (_location == null) {
-        _setError("Please enable location access to continue.");
-        _setLoading(false);
-        return false;
-      }
+      _setError("Please update your location before saving.");
+      _setLoading(false);
+      return false;
     }
 
     try {
+      // 1. Parallel Upload dengan timeout per gambar
       List<Future<String>> uploadFutures = [];
       for (var image in _images) {
         if (image is File) {
-          uploadFutures.add(_uploadImage(image, user.uid));
+          uploadFutures.add(_uploadImage(image, user.uid).timeout(const Duration(seconds: 30)));
         } else if (image is String) {
           uploadFutures.add(Future.value(image));
         }
@@ -311,13 +296,15 @@ class ProfileNotifier extends ChangeNotifier {
         preferredGender: _interestedInGender,
       );
 
+      // 2. Simpan ke Firestore dengan timeout
       await Future.wait([
         _profileService.updateUserProfile(profile),
         _profileService.updateUserPreferences(preferences),
-      ]);
+      ]).timeout(const Duration(seconds: 15));
       
       return true;
     } catch (e) {
+      debugPrint("Save Data Error: $e");
       _setError('Failed to save data: $e');
       return false;
     } finally {

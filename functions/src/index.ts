@@ -5,7 +5,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 
-// Inisialisasi Admin SDK secara global namun efisien
+// Inisialisasi Admin SDK
 const app = initializeApp();
 const db = getFirestore(app);
 const messaging = getMessaging(app);
@@ -59,15 +59,25 @@ export const detectMatch = onDocumentCreated({
       status: "active",
     });
 
-    // Kirim Notifikasi Match
-    const tokens = [uA.data()?.fcmToken, uB.data()?.fcmToken].filter(t => t);
-    if (tokens.length > 0) {
-      await messaging.sendEach(tokens.map(token => ({
-        token,
-        notification: { title: "🎉 Kamu Match!", body: "Kamu memiliki kecocokan baru di Sepadan!" },
-        data: { type: "new_match", matchId },
-      })));
+    const userAData = uA.data();
+    const userBData = uB.data();
+
+    // Notifikasi Match
+    if (userAData?.notificationSettings?.newMatch !== false && userAData?.fcmToken) {
+      await messaging.send({ 
+        token: userAData.fcmToken, 
+        notification: { title: "🎉 Kamu Match!", body: `Kamu match dengan ${nameB}!` },
+        data: { type: "new_match", matchId }
+      });
     }
+    if (userBData?.notificationSettings?.newMatch !== false && userBData?.fcmToken) {
+      await messaging.send({ 
+        token: userBData.fcmToken, 
+        notification: { title: "🎉 Kamu Match!", body: `Kamu match dengan ${nameA}!` },
+        data: { type: "new_match", matchId }
+      });
+    }
+
   } catch (error) {
     logger.error("detectMatch error", error);
   }
@@ -92,12 +102,12 @@ export const onMessageCreated = onDocumentCreated({
 
     const receiverId = matchData.users.find((id: string) => id !== msgData.senderId);
     const receiverSnap = await db.collection("users").doc(receiverId).get();
-    const token = receiverSnap.data()?.fcmToken;
+    const receiverData = receiverSnap.data();
 
-    if (token) {
+    if (receiverData?.notificationSettings?.newMessage !== false && receiverData?.fcmToken) {
       const senderName = matchData.user1Id === msgData.senderId ? matchData.user1Name : matchData.user2Name;
       await messaging.send({
-        token,
+        token: receiverData.fcmToken,
         notification: { title: senderName, body: msgData.text },
         data: { type: "new_message", matchId },
       });
