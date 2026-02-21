@@ -44,36 +44,41 @@ final GoRouter router = GoRouter(
     final loggedIn = user != null;
     
     final isAuthRoute = state.matchedLocation == '/login' || state.matchedLocation == '/register';
+    final isSplash = state.matchedLocation == '/';
 
     if (!loggedIn) {
-      return isAuthRoute ? null : '/login';
+      if (isSplash || isAuthRoute) return null;
+      return '/login';
     }
 
     try {
-      // Cek profil dengan aman
+      // 1. Ambil profil dengan timeout sangat singkat
       final userProfile = await ProfileService().getUserProfile().timeout(
-        const Duration(seconds: 3),
-        onTimeout: () => null,
+        const Duration(seconds: 2),
+        onTimeout: () => throw Exception('Timeout'),
       );
       
-      final bool profileComplete = userProfile != null &&
-          userProfile.name.isNotEmpty &&
-          userProfile.photos.isNotEmpty &&
-          userProfile.age > 0;
-
-      final onProfileScreen = state.matchedLocation == '/profile';
-
-      if (!profileComplete && !onProfileScreen) {
+      // 2. Jika profil benar-benar tidak ada di Firestore (User Baru)
+      if (userProfile == null) {
+        if (state.matchedLocation == '/profile') return null;
         return '/profile';
       }
 
-      if (profileComplete && isAuthRoute) {
+      // 3. Validasi kelengkapan profil dasar
+      final bool isBasicInfoComplete = userProfile.name.isNotEmpty && userProfile.age > 0;
+      
+      if (!isBasicInfoComplete && state.matchedLocation != '/profile') {
+        return '/profile';
+      }
+
+      // 4. Jika sudah lengkap dan mencoba ke Login/Register, arahkan ke Main
+      if (isAuthRoute || isSplash) {
         return '/main';
       }
     } catch (e) {
-      debugPrint("Router Redirect Error: $e");
-      // Jika error Firestore (Permission Denied), biarkan user di halaman saat ini
-      // agar tidak terjadi loop crash.
+      // 🔥 Jika ada error (Permission Denied / Timeout), JANGAN paksa ke Profile.
+      // Biarkan user masuk ke Main Screen agar aplikasi tidak terkunci (locked).
+      if (isAuthRoute || isSplash) return '/main';
     }
 
     return null;

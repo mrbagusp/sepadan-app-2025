@@ -1,65 +1,65 @@
-# Miscellaneous
+# ===============================
+# SYSTEM & IDE
+# ===============================
 *.class
 *.log
 *.pyc
 *.swp
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
+.vscode/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
+# ===============================
+# FLUTTER / DART
+# ===============================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
 **/doc/api/
 **/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
 
-# Symbolication related
-app.*.symbols
+# ===============================
+# ANDROID
+# ===============================
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/local.properties
+android/gradle.properties
 
-# Obfuscation related
-app.*.map.json
+# Keystore & signing
+*.jks
+*.keystore
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# ===============================
+# FIREBASE
+# ===============================
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
+serviceAccount*.json
+firebase-adminsdk*.json
+
 # Firebase Functions
 functions/node_modules/
-dartsdk-windows-x64-release/
-dartsdk-windows-x64-release.zip
 
-android/app/google-services.json
-android/app/*.jks
-ios/Runner/GoogleService-Info.plist
+# ===============================
+# ENV FILES
+# ===============================
 .env
-functions/node_modules/
+.env.*
+*.env
 
-dartsdk-windows-x64-release/
-dartsdk-windows-x64-release.zip
-.build/
-.dart_tool/
-functions/node_modules/
-android/app/google-services.json
-*.jks
-
-
+# ===============================
+# OTHER
+# ===============================
+app.*.symbols
+app.*.map.json
