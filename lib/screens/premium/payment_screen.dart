@@ -1,23 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:sepadan/notifiers/premium_notifier.dart';
-import 'package:go_router/go_router.dart';
 
-class PaymentScreen extends StatefulWidget {
+class PaymentScreen extends StatelessWidget {
   const PaymentScreen({super.key});
-
-  @override
-  State<PaymentScreen> createState() => _PaymentScreenState();
-}
-
-class _PaymentScreenState extends State<PaymentScreen> {
-  bool _isProcessing = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Secure Payment'),
+        title: const Text('Premium Membership'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
       body: Center(
         child: Padding(
@@ -25,54 +17,41 @@ class _PaymentScreenState extends State<PaymentScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.payment, size: 64, color: Colors.blue),
-              const SizedBox(height: 24),
+              const Icon(
+                Icons.stars_rounded,
+                size: 100,
+                color: Colors.amber,
+              ),
+              const SizedBox(height: 32),
               const Text(
-                'Complete Your Subscription',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                'Coming Soon',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 16),
               const Text(
-                'Total Amount: Rp 24.000 / month',
-                style: TextStyle(fontSize: 18),
-              ),
-              const SizedBox(height: 40),
-              if (_isProcessing)
-                const CircularProgressIndicator()
-              else
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () async {
-                    setState(() => _isProcessing = true);
-                    
-                    try {
-                      // Simulate network delay
-                      await Future.delayed(const Duration(seconds: 2));
-                      
-                      if (mounted) {
-                        await context.read<PremiumNotifier>().upgradeToPremium();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Payment Successful! You are now Premium.'), backgroundColor: Colors.green),
-                          );
-                          context.go('/main');
-                        }
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        setState(() => _isProcessing = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Payment Failed: $e'), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Simulate Success (Upgrade Now)'),
+                'With More Features Blessing For You',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey,
                 ),
+              ),
+              const SizedBox(height: 48),
+              const Divider(),
+              const SizedBox(height: 24),
+              Text(
+                'Stay tuned for our version 2.0 release.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey.shade600,
+                ),
+              ),
             ],
           ),
         ),

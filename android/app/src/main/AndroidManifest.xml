@@ -21,6 +21,11 @@
         android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true">
 
+        <!-- 🔥 KONFIGURASI ADMOB (WAJIB) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-9089827400048785~5138421199"/> <!-- ID Test (Ganti dengan App ID asli Anda nanti) -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

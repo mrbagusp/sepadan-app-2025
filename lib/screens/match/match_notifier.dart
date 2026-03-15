@@ -2,11 +2,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:sepadan/models/user_profile.dart';
 import 'package:sepadan/services/match_service.dart';
+import 'package:sepadan/services/ad_service.dart';
+import 'package:sepadan/services/premium_service.dart';
+import 'package:sepadan/services/profile_service.dart'; // 🔥 Import ProfileService
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class MatchNotifier extends ChangeNotifier {
   final MatchService _matchService = MatchService();
+  final AdService _adService = AdService();
+  final PremiumService _premiumService = PremiumService();
+  final ProfileService _profileService = ProfileService(); // 🔥 Instance ProfileService
 
   List<UserProfile> _profiles = [];
   List<UserProfile> get profiles => _profiles;
@@ -14,11 +20,9 @@ class MatchNotifier extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  // Flag untuk notifikasi "New Match" (update via listener)
   bool _hasNewMatch = false;
   bool get hasNewMatch => _hasNewMatch;
 
-  // Data match terbaru (opsional untuk tampilkan popup)
   UserProfile? _latestMatchedUser;
   UserProfile? get latestMatchedUser => _latestMatchedUser;
 
@@ -26,14 +30,24 @@ class MatchNotifier extends ChangeNotifier {
   String? get latestMatchId => _latestMatchId;
 
   StreamSubscription<QuerySnapshot>? _matchListener;
+  bool _isPremium = false;
 
   MatchNotifier() {
     _listenToNewMatches();
+    _adService.loadInterstitialAd();
+    _initPremiumStatus();
+  }
+
+  void _initPremiumStatus() {
+    _premiumService.getPremiumStatus().listen((status) {
+      _isPremium = status;
+    });
   }
 
   @override
   void dispose() {
     _matchListener?.cancel();
+    _adService.dispose();
     super.dispose();
   }
 
@@ -50,7 +64,6 @@ class MatchNotifier extends ChangeNotifier {
 
     try {
       final newProfiles = await _matchService.getPotentialMatches();
-
       final existingIds = _profiles.map((p) => p.uid).toSet();
       final filteredNew = newProfiles.where((p) => !existingIds.contains(p.uid)).toList();
 
@@ -63,7 +76,6 @@ class MatchNotifier extends ChangeNotifier {
     }
   }
 
-  // Mendengarkan collection matches secara real-time
   void _listenToNewMatches() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -74,34 +86,27 @@ class MatchNotifier extends ChangeNotifier {
         .orderBy('createdAt', descending: true)
         .limit(1)
         .snapshots()
-        .listen((snapshot) {
+        .listen((snapshot) async { // 🔥 Tambahkan async di sini
       for (var change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
           final data = change.doc.data() as Map<String, dynamic>?;
           if (data != null) {
-            // Kita terdeteksi match baru dari Cloud Function!
-            _hasNewMatch = true;
-            _latestMatchId = change.doc.id;
-
-            // Nama lawan bicara (ambil dari doc matches)
-            final String otherName = data['user1Id'] == uid ? data['user2Name'] : data['user1Name'];
-            final String otherPhoto = data['user1Id'] == uid ? data['user2PhotoUrl'] : data['user1PhotoUrl'];
-
-            _latestMatchedUser = UserProfile(
-              uid: data['user1Id'] == uid ? data['user2Id'] : data['user1Id'],
-              name: otherName,
-              email: '',
-              photos: [otherPhoto],
-              createdAt: Timestamp.now(),
-              updatedAt: Timestamp.now(),
-            );
-
-            notifyListeners();
+            final otherUserId = data['user1Id'] == uid ? data['user2Id'] : data['user1Id'];
+            
+            // 🔥 AMBIL DATA PROFIL ASLI DARI FIRESTORE
+            final otherUserProfile = await _profileService.getProfileByUid(otherUserId);
+            
+            if (otherUserProfile != null) {
+              _hasNewMatch = true;
+              _latestMatchId = change.doc.id;
+              _latestMatchedUser = otherUserProfile;
+              
+              notifyListeners();
+              debugPrint("NEW MATCH DETECTED: ${_latestMatchedUser?.name}");
+            }
           }
         }
       }
-    }, onError: (e) {
-      debugPrint("Match listener error: $e");
     });
   }
 
@@ -116,12 +121,11 @@ class MatchNotifier extends ChangeNotifier {
     if (index >= _profiles.length) return;
 
     final userToSwipe = _profiles[index];
+    _adService.showInterstitialAdIfEligible(_isPremium);
 
     if (didLike) {
       try {
         await _matchService.likeUser(userToSwipe.uid);
-        // Tidak perlu cek match di sini lagi
-        // UI akan update otomatis via listener _listenToNewMatches()
       } catch (e) {
         debugPrint("Swipe Like Error: $e");
       }
@@ -129,7 +133,6 @@ class MatchNotifier extends ChangeNotifier {
       await _matchService.passUser(userToSwipe.uid);
     }
 
-    // Load more profiles jika mendekati akhir list
     if (index >= _profiles.length - 3 && _profiles.length > 0) {
       fetchPotentialMatches();
     }

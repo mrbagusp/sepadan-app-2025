@@ -119,7 +119,6 @@ class ProfileNotifier extends ChangeNotifier {
         }
       }
 
-      // Hanya update lokasi jika belum ada, agar tidak memperlambat loading awal
       if (_location == null) {
         updateLocation();
       }
@@ -179,7 +178,6 @@ class ProfileNotifier extends ChangeNotifier {
 
       if (permission == LocationPermission.deniedForever) return;
 
-      // 🔥 Added 5 seconds timeout to prevent infinite hang
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.low,
         timeLimit: const Duration(seconds: 5),
@@ -188,22 +186,21 @@ class ProfileNotifier extends ChangeNotifier {
       _location = GeoPoint(position.latitude, position.longitude);
       
       final user = _auth.currentUser;
-      if (user != null && _userProfile != null) {
-        _firestore.collection('profiles').doc(user.uid).update({
+      if (user != null) {
+        // 🔥 FIXED: Use .set with merge: true to avoid 'not-found'
+        await _firestore.collection('profiles').doc(user.uid).set({
           'location': _location,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
       }
       notifyListeners();
     } catch (e) {
-      debugPrint("Update Location Silently Failed: $e");
+      debugPrint("Location update failed: $e");
     }
   }
 
   Future<bool> sendFeedback() async {
-    final String message = feedbackController.text.trim();
-    if (message.isEmpty) return false;
-    
+    if (feedbackController.text.trim().isEmpty) return false;
     _setLoading(true);
     try {
       final user = _auth.currentUser;
@@ -211,7 +208,7 @@ class ProfileNotifier extends ChangeNotifier {
         'userId': user?.uid,
         'userName': nameController.text,
         'userEmail': user?.email ?? 'Unknown',
-        'message': message,
+        'message': feedbackController.text.trim(),
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'feedback_bug',
       }).timeout(const Duration(seconds: 10));
@@ -257,13 +254,16 @@ class ProfileNotifier extends ChangeNotifier {
     }
     
     if (_location == null) {
-      _setError("Please update your location before saving.");
-      _setLoading(false);
-      return false;
+      await updateLocation();
+      if (_location == null) {
+        _setError("Please update your location before saving.");
+        _setLoading(false);
+        return false;
+      }
     }
 
     try {
-      // 1. Parallel Upload dengan timeout per gambar
+      // 1. Parallel Upload
       List<Future<String>> uploadFutures = [];
       for (var image in _images) {
         if (image is File) {
@@ -275,6 +275,7 @@ class ProfileNotifier extends ChangeNotifier {
 
       final List<String> photoUrls = await Future.wait(uploadFutures);
 
+      // 2. Save Core Data
       final profile = UserProfile(
         uid: user.uid,
         email: user.email ?? '',
@@ -296,7 +297,7 @@ class ProfileNotifier extends ChangeNotifier {
         preferredGender: _interestedInGender,
       );
 
-      // 2. Simpan ke Firestore dengan timeout
+      // 🔥 FIXED: Simpan ke Firestore dengan timeout
       await Future.wait([
         _profileService.updateUserProfile(profile),
         _profileService.updateUserPreferences(preferences),

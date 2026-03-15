@@ -5,7 +5,6 @@ import 'package:sepadan/screens/admin/admin_dashboard.dart';
 import 'package:sepadan/screens/chat/chat_screen.dart';
 import 'package:sepadan/screens/premium/premium_upsell_screen.dart';
 import 'package:sepadan/screens/premium/payment_screen.dart';
-import 'package:sepadan/services/profile_service.dart';
 import 'package:sepadan/services/auth_service.dart';
 import '../screens/main_screen.dart';
 import '../screens/splash_screen.dart';
@@ -46,39 +45,15 @@ final GoRouter router = GoRouter(
     final isAuthRoute = state.matchedLocation == '/login' || state.matchedLocation == '/register';
     final isSplash = state.matchedLocation == '/';
 
+    // 🔥 OPTIMASI: Jangan panggil Firestore di sini agar booting aplikasi super cepat.
+    // Cukup cek status login dasar.
     if (!loggedIn) {
       if (isSplash || isAuthRoute) return null;
       return '/login';
     }
 
-    try {
-      // 1. Ambil profil dengan timeout sangat singkat
-      final userProfile = await ProfileService().getUserProfile().timeout(
-        const Duration(seconds: 2),
-        onTimeout: () => throw Exception('Timeout'),
-      );
-      
-      // 2. Jika profil benar-benar tidak ada di Firestore (User Baru)
-      if (userProfile == null) {
-        if (state.matchedLocation == '/profile') return null;
-        return '/profile';
-      }
-
-      // 3. Validasi kelengkapan profil dasar
-      final bool isBasicInfoComplete = userProfile.name.isNotEmpty && userProfile.age > 0;
-      
-      if (!isBasicInfoComplete && state.matchedLocation != '/profile') {
-        return '/profile';
-      }
-
-      // 4. Jika sudah lengkap dan mencoba ke Login/Register, arahkan ke Main
-      if (isAuthRoute || isSplash) {
-        return '/main';
-      }
-    } catch (e) {
-      // 🔥 Jika ada error (Permission Denied / Timeout), JANGAN paksa ke Profile.
-      // Biarkan user masuk ke Main Screen agar aplikasi tidak terkunci (locked).
-      if (isAuthRoute || isSplash) return '/main';
+    if (loggedIn && (isSplash || isAuthRoute)) {
+      return '/main';
     }
 
     return null;

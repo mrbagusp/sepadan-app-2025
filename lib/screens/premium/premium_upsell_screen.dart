@@ -1,76 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:sepadan/screens/premium/payment_screen.dart';
+import 'package:go_router/go_router.dart';
+import 'package:sepadan/services/premium_service.dart';
 
 class PremiumUpsellScreen extends StatelessWidget {
   final String featureName;
 
-  const PremiumUpsellScreen({
-    super.key,
-    required this.featureName,
-  });
+  const PremiumUpsellScreen({super.key, required this.featureName});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Go Premium'),
-      ),
+      appBar: AppBar(title: const Text('Premium Membership')),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
-              const Icon(Icons.star, size: 80, color: Colors.amber),
+              const Icon(Icons.stars_rounded, size: 100, color: Colors.amber),
               const SizedBox(height: 24),
-              const Text(
-                'SUPPORT MINISTRY AND GET MORE BLESSINGS',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              Text(
+                'Buka Fitur $featureName',
                 textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Dengan menjadi member premium anda telah mendukung pelayanan SEPADAN dan akan mendapatkan benefit sebagai berikut:',
-                style: TextStyle(fontSize: 16),
+              const SizedBox(height: 16),
+              Text(
+                'Hanya seharga makan siang ${PremiumService.formattedPremiumPrice}/bulan, Anda telah melayani dan kiranya semakin banyak orang terberkati melalui Sepadan.',
                 textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              _buildBenefitItem(context, Icons.swipe, 'Unlimited Swipe'),
-              _buildBenefitItem(context, Icons.chat, 'Unlimited chat'),
-              _buildBenefitItem(context, Icons.notifications_active, 'Mendapatkan renungan harian dan notifikasi setiap pagi'),
-              _buildBenefitItem(context, Icons.event, 'Bisa membaca full dan submit new events'),
-              _buildBenefitItem(context, Icons.front_hand, 'Bisa membaca full dan submit prayer request'),
-              _buildBenefitItem(context, Icons.favorite, 'Bisa membaca dan submit new testimonial. Kisah hidup Anda bisa menjadi harapan bagi orang lain.'),
-              const SizedBox(height: 32),
-              const Text(
-                'Hanya seharga makan siang Rp.24,000/bulan, Anda telah melayani dan kiranya semakin terbuka jalan untuk menemukan jodoh Anda didalam Tuhan',
-                style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'UPGRADE MEMBERSHIP ANDA SEKARANG!',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepPurple),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const PaymentScreen()),
-                  );
-                },
-                child: const Text('Pay Now', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 40),
+              _buildFeatureItem(Icons.swipe, 'Unlimited Swipe & Likes'),
+              _buildFeatureItem(Icons.chat, 'Chat Tanpa Batas'),
+              _buildFeatureItem(Icons.menu_book, 'Akses Seluruh Renungan Harian'),
+              _buildFeatureItem(Icons.verified, 'Lencana Profil Terverifikasi'),
+              const SizedBox(height: 48),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 55),
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => context.push('/payment'),
+                child: const Text('UPGRADE SEKARANG', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Mungkin Nanti', style: TextStyle(color: Colors.grey)),
+              ),
             ],
           ),
         ),
@@ -78,17 +56,14 @@ class PremiumUpsellScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBenefitItem(BuildContext context, IconData icon, String text) {
+  Widget _buildFeatureItem(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.deepPurple, size: 24),
+          Icon(icon, color: Colors.green),
           const SizedBox(width: 16),
-          Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 15)),
-          ),
+          Text(text, style: const TextStyle(fontSize: 16)),
         ],
       ),
     );
