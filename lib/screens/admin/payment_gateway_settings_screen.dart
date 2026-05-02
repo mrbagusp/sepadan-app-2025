@@ -15,11 +15,12 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
   final _midtransClientKeyController = TextEditingController();
   final _midtransMerchantIdController = TextEditingController();
   final _ipaymuKeyController = TextEditingController();
-  final _ipaymuVaController = TextEditingController(); // 🔥 NEW
+  final _ipaymuVaController = TextEditingController();
   final _xenditKeyController = TextEditingController();
   
   bool _isSaving = false;
-  bool _isProduction = false; // 🔥 NEW
+  bool _isProduction = false;
+  bool _isPremiumEnabled = false; // 🔥 NEW: Toggle Premium Status Global
   String _activeGateway = 'ipaymu';
 
   @override
@@ -33,7 +34,6 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
     if (doc.exists) {
       final data = doc.data()!;
       setState(() {
-        // 🔥 Sinkronisasi nama field dengan PremiumService
         _midtransClientKeyController.text = data['midtransClientKey'] ?? '';
         _midtransMerchantIdController.text = data['midtransMerchantId'] ?? '';
         _ipaymuKeyController.text = data['ipaymuApiKey'] ?? '';
@@ -41,6 +41,7 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
         _xenditKeyController.text = data['xenditSecretKey'] ?? '';
         _activeGateway = data['activeGateway'] ?? 'ipaymu';
         _isProduction = data['isProduction'] ?? false;
+        _isPremiumEnabled = data['isPremiumEnabled'] ?? false; // 🔥 Load status
       });
     }
   }
@@ -50,7 +51,6 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
 
     setState(() => _isSaving = true);
     try {
-      // 🔥 Gunakan CamelCase agar sesuai dengan standard PremiumService.dart
       await FirebaseFirestore.instance.collection('settings').doc('payment_gateway').set({
         'midtransClientKey': _midtransClientKeyController.text.trim(),
         'midtransMerchantId': _midtransMerchantIdController.text.trim(),
@@ -59,12 +59,13 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
         'xenditSecretKey': _xenditKeyController.text.trim(),
         'activeGateway': _activeGateway,
         'isProduction': _isProduction,
+        'isPremiumEnabled': _isPremiumEnabled, // 🔥 Simpan status
         'updatedAt': FieldValue.serverTimestamp(),
       });
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Konfigurasi iPaymu Berhasil Disimpan!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Konfigurasi Berhasil Disimpan!'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -82,7 +83,7 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Payment Gateway Settings', style: TextStyle(color: Colors.white)),
+        title: const Text('Payment & Premium Settings', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.deepPurple,
         actions: [
           if (_isSaving)
@@ -101,8 +102,28 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Gateway Utama', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
+              _buildSectionTitle('GLOBAL PREMIUM STATUS'),
+              Container(
+                decoration: BoxDecoration(
+                  color: _isPremiumEnabled ? Colors.orange.shade50 : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _isPremiumEnabled ? Colors.orange : Colors.green),
+                ),
+                child: SwitchListTile(
+                  title: const Text('Aktifkan Fitur Berbayar', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(_isPremiumEnabled 
+                    ? 'Fitur premium terkunci (User harus bayar setelah trial)' 
+                    : 'Masa Soft Launching: Semua fitur GRATIS selamanya'),
+                  value: _isPremiumEnabled,
+                  activeColor: Colors.orange,
+                  onChanged: (val) => setState(() => _isPremiumEnabled = val),
+                ),
+              ),
+              const SizedBox(height: 30),
+              
+              _buildSectionTitle('GATEWAY CONFIGURATION'),
+              const Text('Pilih Gateway Aktif', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _activeGateway,
                 isExpanded: true,
@@ -127,36 +148,14 @@ class _PaymentGatewaySettingsScreenState extends State<PaymentGatewaySettingsScr
               
               const Divider(height: 40),
               
-              _buildSectionTitle('iPaymu (REKOMENDASI)'),
+              _buildSectionTitle('iPaymu'),
               _buildTextField(_ipaymuKeyController, 'iPaymu API Key', isSecret: true),
               _buildTextField(_ipaymuVaController, 'iPaymu Virtual Account (VA)'),
               
               const SizedBox(height: 30),
-              _buildSectionTitle('Midtrans (Optional)'),
+              _buildSectionTitle('Midtrans'),
               _buildTextField(_midtransClientKeyController, 'Client Key'),
               _buildTextField(_midtransMerchantIdController, 'Merchant ID'),
-              
-              const SizedBox(height: 30),
-              _buildSectionTitle('Xendit (Optional)'),
-              _buildTextField(_xenditKeyController, 'Secret Key', isSecret: true),
-              
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Pastikan API Key dan VA iPaymu sesuai dengan yang ada di Dashboard iPaymu Anda.',
-                        style: TextStyle(fontSize: 12, color: Colors.blue),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),

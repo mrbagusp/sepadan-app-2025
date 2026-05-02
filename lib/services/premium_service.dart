@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:intl/intl.dart';
+import 'package:rxdart/rxdart.dart';
 
 class PremiumService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -19,40 +20,43 @@ class PremiumService {
     decimalDigits: 0,
   ).format(premiumAmount);
 
-  /* ================= PREMIUM STATUS (30 DAYS TRIAL LOGIC) ================= */
+  /* ================= PREMIUM STATUS (WITH GLOBAL TOGGLE) ================= */
 
   Stream<bool> getPremiumStatus() {
-    return _auth.authStateChanges().asyncExpand((user) {
+    return _auth.authStateChanges().switchMap((user) {
       if (user == null) return Stream.value(false);
 
-      return _firestore
-          .collection('users')
-          .doc(user.uid)
-          .snapshots()
-          .map((snapshot) {
-        if (!snapshot.exists) return false;
-        final data = snapshot.data() as Map<String, dynamic>;
-        
-        // 1. Cek status premium berbayar
-        final bool manualPremium = data['isPremium'] ?? false;
-        
-        // 2. 🔥 LOGIKA FREEMIUM 1 BULAN (30 HARI)
-        final Timestamp? createdAt = data['createdAt'] as Timestamp?;
-        bool isTrialActive = false;
-        
-        if (createdAt != null) {
-          final creationDate = createdAt.toDate();
-          final now = DateTime.now();
-          final difference = now.difference(creationDate).inDays;
+      // 🔥 Kombinasikan stream Data User dan stream Settings Global
+      return Rx.combineLatest2(
+        _firestore.collection('users').doc(user.uid).snapshots(),
+        _firestore.collection('settings').doc('payment_gateway').snapshots(),
+        (DocumentSnapshot userSnap, DocumentSnapshot settingsSnap) {
+          if (!userSnap.exists) return false;
           
-          // User free mendapatkan akses penuh selama 30 hari pertama
-          if (difference <= 30) {
-            isTrialActive = true;
+          final userData = userSnap.data() as Map<String, dynamic>;
+          final settingsData = settingsSnap.exists ? settingsSnap.data() as Map<String, dynamic> : {};
+          
+          // 1. CEK TOGGLE GLOBAL (Admin Panel)
+          // Jika isPremiumEnabled == false (Masa Soft Launching), semua jadi Premium
+          final bool isPremiumFeatureEnabled = settingsData['isPremiumEnabled'] ?? false;
+          if (!isPremiumFeatureEnabled) {
+            return true; 
           }
-        }
 
-        return manualPremium || isTrialActive;
-      });
+          // 2. Jika Premium diaktifkan, cek status individu user
+          final bool manualPremium = userData['isPremium'] ?? false;
+          
+          // 3. Cek Trial 30 Hari
+          final Timestamp? createdAt = userData['createdAt'] as Timestamp?;
+          bool isTrialActive = false;
+          if (createdAt != null) {
+            final difference = DateTime.now().difference(createdAt.toDate()).inDays;
+            if (difference <= 30) isTrialActive = true;
+          }
+
+          return manualPremium || isTrialActive;
+        },
+      );
     });
   }
 

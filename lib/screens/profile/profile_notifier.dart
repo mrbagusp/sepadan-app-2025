@@ -1,3 +1,8 @@
+// ============================================================
+// 📁 lib/screens/profile/profile_notifier.dart
+// ✅ FIXED: Based on original + added location permission dialogs
+// ============================================================
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -37,7 +42,7 @@ class ProfileNotifier extends ChangeNotifier {
   final TextEditingController aboutMeController = TextEditingController();
   final TextEditingController faithAnswerController = TextEditingController();
   final TextEditingController feedbackController = TextEditingController();
-  
+
   String gender = 'male';
   GeoPoint? _location;
   GeoPoint? get location => _location;
@@ -47,7 +52,7 @@ class ProfileNotifier extends ChangeNotifier {
   bool notifyNewMatch = true;
   bool notifyNewMessage = true;
 
-  // Preferences data
+  // Preferences data - using private with setters (IMPORTANT!)
   RangeValues _preferredAgeRange = const RangeValues(25, 45);
   RangeValues get preferredAgeRange => _preferredAgeRange;
   set preferredAgeRange(RangeValues value) {
@@ -69,6 +74,11 @@ class ProfileNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Context for location dialogs
+  BuildContext? _context;
+  void setContext(BuildContext context) {
+    _context = context;
+  }
 
   ProfileNotifier() {
     loadData();
@@ -120,7 +130,7 @@ class ProfileNotifier extends ChangeNotifier {
       }
 
       if (_location == null) {
-        updateLocation();
+        await updateLocation();
       }
 
     } catch (e) {
@@ -156,7 +166,7 @@ class ProfileNotifier extends ChangeNotifier {
       }
       notifyListeners();
     }
-  } 
+  }
 
   void removeImage(int index) {
     if (index < _images.length) {
@@ -165,39 +175,248 @@ class ProfileNotifier extends ChangeNotifier {
     }
   }
 
+  // ─────────────────────────────────────────────────────────
+  // 🔥 LOCATION WITH PERMISSION DIALOGS
+  // ─────────────────────────────────────────────────────────
+
   Future<void> updateLocation() async {
     try {
+      // 1. Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
+      if (!serviceEnabled) {
+        if (_context != null && _context!.mounted) {
+          final shouldOpen = await _showLocationServiceDialog(_context!);
+          if (shouldOpen) {
+            await Geolocator.openLocationSettings();
+          }
+        }
+        return;
       }
 
-      if (permission == LocationPermission.deniedForever) return;
+      // 2. Check permission
+      LocationPermission permission = await Geolocator.checkPermission();
 
+      if (permission == LocationPermission.denied) {
+        // Show explanation dialog first
+        if (_context != null && _context!.mounted) {
+          await _showPermissionExplanationDialog(_context!);
+        }
+
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _setError('Location permission denied');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (_context != null && _context!.mounted) {
+          final shouldOpen = await _showPermissionDeniedForeverDialog(_context!);
+          if (shouldOpen) {
+            await Geolocator.openAppSettings();
+          }
+        }
+        return;
+      }
+
+      // 3. Get position
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 5),
+        timeLimit: const Duration(seconds: 10),
       );
-      
+
       _location = GeoPoint(position.latitude, position.longitude);
-      
+
       final user = _auth.currentUser;
       if (user != null) {
-        // 🔥 FIXED: Use .set with merge: true to avoid 'not-found'
         await _firestore.collection('profiles').doc(user.uid).set({
           'location': _location,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
+
+      _setError(null);
       notifyListeners();
     } catch (e) {
       debugPrint("Location update failed: $e");
+      _setError('Failed to get location');
     }
   }
+
+  // ─────────────────────────────────────────────────────────
+  // LOCATION DIALOGS
+  // ─────────────────────────────────────────────────────────
+
+  Future<bool> _showLocationServiceDialog(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.location_off, color: Colors.orange.shade600),
+            ),
+            const SizedBox(width: 12),
+            const Text('Location Disabled'),
+          ],
+        ),
+        content: const Text(
+          'Location services are turned off.\n\nPlease enable them to find matches near you.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  Future<void> _showPermissionExplanationDialog(BuildContext context) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.location_on, color: Colors.deepPurple.shade600),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Allow Location', style: TextStyle(fontSize: 18)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'SEPADAN needs your location to:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildBullet(Icons.people, 'Find matches near you'),
+            _buildBullet(Icons.straighten, 'Show distance on profiles'),
+            _buildBullet(Icons.explore, 'Improve recommendations'),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.security, color: Colors.blue.shade600, size: 20),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Your exact location is never shown to others.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text('I Understand'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBullet(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.deepPurple, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _showPermissionDeniedForeverDialog(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.location_disabled, color: Colors.red.shade600),
+            ),
+            const SizedBox(width: 12),
+            const Text('Permission Required'),
+          ],
+        ),
+        content: const Text(
+          'Location permission was permanently denied.\n\n'
+              'Please enable it in app settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // OTHER METHODS (unchanged from original)
+  // ─────────────────────────────────────────────────────────
 
   Future<bool> sendFeedback() async {
     if (feedbackController.text.trim().isEmpty) return false;
@@ -212,7 +431,7 @@ class ProfileNotifier extends ChangeNotifier {
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'feedback_bug',
       }).timeout(const Duration(seconds: 10));
-      
+
       feedbackController.clear();
       return true;
     } catch (e) {
@@ -232,7 +451,7 @@ class ProfileNotifier extends ChangeNotifier {
       await _firestore.collection('users').doc(user.uid).delete();
       await _firestore.collection('profiles').doc(user.uid).delete();
       await _firestore.collection('preferences').doc(user.uid).delete();
-      
+
       await user.delete();
       return true;
     } catch (e) {
@@ -252,11 +471,18 @@ class ProfileNotifier extends ChangeNotifier {
       _setLoading(false);
       return false;
     }
-    
+
+    // Harus ada minimal 1 foto
+    if (_images.isEmpty) {
+      _setError("Please upload at least 1 photo to continue.");
+      _setLoading(false);
+      return false;
+    }
+
     if (_location == null) {
       await updateLocation();
       if (_location == null) {
-        _setError("Please update your location before saving.");
+        _setError("Please enable location access to save your profile.");
         _setLoading(false);
         return false;
       }
@@ -297,12 +523,11 @@ class ProfileNotifier extends ChangeNotifier {
         preferredGender: _interestedInGender,
       );
 
-      // 🔥 FIXED: Simpan ke Firestore dengan timeout
       await Future.wait([
         _profileService.updateUserProfile(profile),
         _profileService.updateUserPreferences(preferences),
       ]).timeout(const Duration(seconds: 15));
-      
+
       return true;
     } catch (e) {
       debugPrint("Save Data Error: $e");

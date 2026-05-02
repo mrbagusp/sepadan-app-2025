@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sepadan/screens/admin/dummy_data_generator.dart';
+
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -12,6 +14,9 @@ class AdminScreen extends StatelessWidget {
       ),
       body: ListView(
         children: [
+          // 🔥 TAMBAHKAN INI
+          const DummyGeneratorWidget(),
+
           ListTile(
             leading: const Icon(Icons.shield_outlined),
             title: const Text('Content Moderation'),

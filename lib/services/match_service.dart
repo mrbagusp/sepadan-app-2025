@@ -1,3 +1,8 @@
+// ============================================================
+// 📁 lib/services/match_service.dart
+// ✅ FIXED: Proper gender filtering for dummy users
+// ============================================================
+
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,6 +22,20 @@ class MatchService {
   MatchService() {
     _currentUserId = _auth.currentUser?.uid;
     _auth.authStateChanges().listen((user) => _currentUserId = user?.uid);
+  }
+
+  /// Update lastActiveAt timestamp
+  Future<void> updateLastActive() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      await _firestore.collection('profiles').doc(uid).set({
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("updateLastActive error: $e");
+    }
   }
 
   /// Mengecek apakah user masih boleh swipe hari ini
@@ -95,17 +114,19 @@ class MatchService {
         // Sudah di-like, di-pass, atau sudah match → skip
         if (excludedUids.contains(profile.uid)) return false;
 
-        // Dummy profile boleh ditampilkan (jika ada)
-        if (profile.uid.contains('dummy')) return true;
-
-        // Filter berdasarkan preferensi gender
+        // 🔥 FIXED: Apply gender filter to ALL profiles including dummy
         final targetGender = preferences.preferredGender.toLowerCase();
+        final profileGender = profile.gender.toLowerCase();
+
         if (targetGender != 'both' &&
             targetGender != 'everyone' &&
             targetGender != 'all') {
-          final userGender = profile.gender.toLowerCase();
-          if (targetGender == 'men' && userGender != 'male') return false;
-          if (targetGender == 'women' && userGender != 'female') return false;
+          // Handle both 'male'/'female' and 'men'/'women' formats
+          if (targetGender == 'male' || targetGender == 'men') {
+            if (profileGender != 'male') return false;
+          } else if (targetGender == 'female' || targetGender == 'women') {
+            if (profileGender != 'female') return false;
+          }
         }
 
         // Filter umur
@@ -114,16 +135,17 @@ class MatchService {
           return false;
         }
 
-        // Filter jarak (jika lokasi tersedia)
-        if (currentUserProfile?.location != null && profile.location != null) {
+        // Filter jarak (jika lokasi tersedia) - skip for dummy users
+        if (!profile.uid.contains('dummy') &&
+            currentUserProfile?.location != null &&
+            profile.location != null) {
           try {
             final distanceInKm = Geolocator.distanceBetween(
               currentUserProfile!.location!.latitude,
               currentUserProfile.location!.longitude,
               profile.location!.latitude,
               profile.location!.longitude,
-            ) /
-                1000;
+            ) / 1000;
 
             if (distanceInKm > preferences.maxDistanceKm) return false;
           } catch (e) {
@@ -211,9 +233,9 @@ class MatchService {
       });
 
       await _incrementSwipeCount();
+      await updateLastActive();
 
       // Catatan: match akan dibuat otomatis oleh Cloud Function
-      // Kamu bisa menampilkan toast "Liked!" atau animasi di UI
     } catch (e) {
       debugPrint("likeUser error: $e");
       Fluttertoast.showToast(
@@ -239,6 +261,7 @@ class MatchService {
       });
 
       await _incrementSwipeCount();
+      await updateLastActive();
     } catch (e) {
       debugPrint("passUser error: $e");
     }

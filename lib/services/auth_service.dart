@@ -1,8 +1,14 @@
+// ============================================================
+// 📁 lib/services/auth_service.dart
+// ✅ UPDATED: Clear profile cache on signOut
+// ============================================================
+
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sepadan/models/user_profile.dart';
+import 'package:sepadan/core/app_router.dart'; // 🔥 Import for clearProfileCache
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -188,6 +194,9 @@ class AuthService {
   // ================= SIGN OUT =================
 
   Future<void> signOut() async {
+    // 🔥 Clear profile cache before signing out
+    await clearProfileCache();
+    
     await _googleSignIn.signOut().catchError((_) => null);
     await _auth.signOut();
   }

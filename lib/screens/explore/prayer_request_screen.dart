@@ -68,7 +68,6 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  // 🔥 Tampilkan error spesifik (misal: "Index required")
                   return Center(child: Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: Text('Error: ${snapshot.error}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
@@ -118,7 +117,7 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
                                 Expanded(
                                   child: Text(
                                     data['title'] ?? '',
-                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
                                   ),
                                 ),
                                 if (isUrgent)
@@ -129,9 +128,21 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
                                   ),
                               ],
                             ),
-                            Text('Oleh: ${data['userName'] ?? 'Anonymous'}', style: TextStyle(color: Colors.grey[600])),
+                            const SizedBox(height: 4),
+                            // 🔥 FIX: MENAMPILKAN NAMA USER DENGAN WARNA KONTRAS
+                            Text(
+                              'Oleh: ${data['userName'] ?? 'Anonymous'}', 
+                              style: const TextStyle(
+                                color: Colors.blueAccent, 
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
                             const SizedBox(height: 12),
-                            Text(data['details'] ?? ''),
+                            Text(
+                              data['details'] ?? '',
+                              style: const TextStyle(color: Colors.black87, fontSize: 15),
+                            ),
                             const SizedBox(height: 12),
                             
                             Row(
@@ -150,7 +161,7 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
                             ),
                             
                             const Divider(),
-                            const Text('Komentar:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const Text('Komentar:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
                             ... comments.map((c) => Padding(
                               padding: const EdgeInsets.symmetric(vertical: 2),
                               child: Text('- $c', style: const TextStyle(fontSize: 13, color: Colors.black87)),
@@ -163,9 +174,10 @@ class _PrayerRequestScreenState extends State<PrayerRequestScreen> {
                                   Expanded(
                                     child: TextField(
                                       controller: _commentControllers[prayerId],
+                                      style: const TextStyle(color: Colors.black87),
                                       decoration: const InputDecoration(
                                         hintText: 'Tulis komentar...',
-                                        hintStyle: TextStyle(fontSize: 12),
+                                        hintStyle: TextStyle(fontSize: 12, color: Colors.grey),
                                         isDense: true,
                                       ),
                                     ),

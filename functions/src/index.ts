@@ -1,150 +1,387 @@
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+// ============================================================
+// 📁 functions/src/index.ts
+// ✅ Cloud Functions for SEPADAN App
+// ✅ All notifications: dailyDevo, newMatch, newMessage
+// ============================================================
+
+import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import * as logger from "firebase-functions/logger";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 
-// Inisialisasi Admin SDK
-const app = initializeApp();
-const db = getFirestore(app);
-const messaging = getMessaging(app);
+// Initialize
+initializeApp();
+const db = getFirestore();
+const messaging = getMessaging();
 
-/**
- * 1. TRIGGER: Matchmaking Otomatis (Mutual Like)
- */
-export const detectMatch = onDocumentCreated({
-  document: "likes/{userId}/liked/{targetId}",
-  region: "asia-southeast2",
-  memory: "256MiB",
-}, async (event) => {
-  const { userId, targetId } = event.params;
-  if (!userId || !targetId || userId === targetId) return;
+// ─────────────────────────────────────────────────────────
+// HELPER: Check if notification is enabled
+// Returns TRUE if:
+//   - notificationSettings doesn't exist (default ON)
+//   - notificationSettings.[type] doesn't exist (default ON)
+//   - notificationSettings.[type] === true
+// Returns FALSE only if notificationSettings.[type] === false
+// ─────────────────────────────────────────────────────────
+function isNotificationEnabled(
+  userData: FirebaseFirestore.DocumentData | undefined,
+  type: "dailyDevo" | "newMatch" | "newMessage"
+): boolean {
+  if (!userData) return false;
+  if (!userData.fcmToken) return false;
+  
+  // If no notificationSettings, default to enabled
+  if (!userData.notificationSettings) return true;
+  
+  // If specific setting doesn't exist, default to enabled
+  if (userData.notificationSettings[type] === undefined) return true;
+  
+  // Return the actual setting
+  return userData.notificationSettings[type] === true;
+}
 
-  try {
-    const reciprocalSnap = await db.collection("likes").doc(targetId).collection("liked").doc(userId).get();
-    if (!reciprocalSnap.exists) return;
-
-    const uids = [userId, targetId].sort();
-    const matchId = uids.join("_");
-    const matchRef = db.collection("matches").doc(matchId);
-
-    const matchSnap = await matchRef.get();
-    if (matchSnap.exists) return;
-
-    const [pA, pB, uA, uB] = await Promise.all([
-      db.collection("profiles").doc(userId).get(),
-      db.collection("profiles").doc(targetId).get(),
-      db.collection("users").doc(userId).get(),
-      db.collection("users").doc(targetId).get(),
-    ]);
-
-    const nameA = pA.data()?.displayName || "User";
-    const nameB = pB.data()?.displayName || "User";
-    const photoA = pA.data()?.photoUrl || "";
-    const photoB = pB.data()?.photoUrl || "";
-
-    await matchRef.set({
-      users: uids,
-      user1Id: uids[0],
-      user2Id: uids[1],
-      user1Name: uids[0] === userId ? nameA : nameB,
-      user2Name: uids[1] === userId ? nameA : nameB,
-      user1PhotoUrl: uids[0] === userId ? photoA : photoB,
-      user2PhotoUrl: uids[1] === userId ? photoA : photoB,
-      createdAt: FieldValue.serverTimestamp(),
-      lastActivityAt: FieldValue.serverTimestamp(),
-      lastMessage: "Kalian telah cocok! Silakan mulai menyapa.",
-      lastMessageTimestamp: FieldValue.serverTimestamp(),
-      status: "active",
-    });
-
-    const userAData = uA.data();
-    const userBData = uB.data();
-
-    // Notifikasi Match
-    if (userAData?.notificationSettings?.newMatch !== false && userAData?.fcmToken) {
-      await messaging.send({ 
-        token: userAData.fcmToken, 
-        notification: { title: "🎉 Kamu Match!", body: `Kamu match dengan ${nameB}!` },
-        data: { type: "new_match", matchId }
-      });
-    }
-    if (userBData?.notificationSettings?.newMatch !== false && userBData?.fcmToken) {
-      await messaging.send({ 
-        token: userBData.fcmToken, 
-        notification: { title: "🎉 Kamu Match!", body: `Kamu match dengan ${nameA}!` },
-        data: { type: "new_match", matchId }
-      });
-    }
-
-  } catch (error) {
-    logger.error("detectMatch error", error);
+// ─────────────────────────────────────────────────────────
+// TEST FUNCTION
+// ─────────────────────────────────────────────────────────
+export const helloWorld = onRequest(
+  { region: "asia-southeast2" },
+  (req, res) => {
+    res.send("Hello from SEPADAN! Functions are working.");
   }
-});
+);
 
-/**
- * 2. TRIGGER: Notifikasi Chat Baru
- */
-export const onMessageCreated = onDocumentCreated({
-  document: "matches/{matchId}/messages/{messageId}",
-  region: "asia-southeast2",
-  memory: "256MiB",
-}, async (event) => {
-  const { matchId } = event.params;
-  const msgData = event.data?.data();
-  if (!msgData) return;
+// ─────────────────────────────────────────────────────────
+// 1. DAILY DEVOTIONAL - 5:00 AM WIB
+// ─────────────────────────────────────────────────────────
+export const sendDailyDevotional = onSchedule(
+  {
+    schedule: "0 5 * * *",
+    timeZone: "Asia/Jakarta",
+    region: "asia-southeast2",
+  },
+  async () => {
+    console.log("🕔 sendDailyDevotional started at 5:00 AM WIB");
 
-  try {
-    const matchSnap = await db.collection("matches").doc(matchId).get();
-    const matchData = matchSnap.data();
-    if (!matchData) return;
+    try {
+      // Get today's devotional
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    const receiverId = matchData.users.find((id: string) => id !== msgData.senderId);
-    const receiverSnap = await db.collection("users").doc(receiverId).get();
-    const receiverData = receiverSnap.data();
+      const devoSnap = await db
+        .collection("daily_devotionals")
+        .where("date", ">=", Timestamp.fromDate(today))
+        .orderBy("date", "asc")
+        .limit(1)
+        .get();
 
-    if (receiverData?.notificationSettings?.newMessage !== false && receiverData?.fcmToken) {
-      const senderName = matchData.user1Id === msgData.senderId ? matchData.user1Name : matchData.user2Name;
-      await messaging.send({
-        token: receiverData.fcmToken,
-        notification: { title: senderName, body: msgData.text },
-        data: { type: "new_message", matchId },
-      });
-    }
-  } catch (error) {
-    logger.error("onMessageCreated error", error);
-  }
-});
-
-/**
- * 3. SCHEDULED: Notifikasi Renungan Pagi (06:00 WIB)
- */
-export const sendDailyDevotional = onSchedule({
-  schedule: "0 6 * * *",
-  timeZone: "Asia/Jakarta",
-  region: "asia-southeast2",
-}, async () => {
-  try {
-    const devoSnap = await db.collection("daily_devotionals").orderBy("date", "desc").limit(1).get();
-    if (devoSnap.empty) return;
-
-    const devo = devoSnap.docs[0].data();
-    const usersSnap = await db.collection("users").where("notificationSettings.dailyDevo", "==", true).get();
-    const tokens = usersSnap.docs.map(d => d.data().fcmToken).filter(t => t);
-
-    if (tokens.length > 0) {
-      const chunks = [];
-      for (let i = 0; i < tokens.length; i += 500) chunks.push(tokens.slice(i, i + 500));
-      for (const chunk of chunks) {
-        await messaging.sendEachForMulticast({
-          tokens: chunk,
-          notification: { title: `📖 ${devo.title}`, body: devo.content?.substring(0, 100) + "..." },
-          data: { type: "daily_devo", id: devoSnap.docs[0].id },
-        });
+      if (devoSnap.empty) {
+        console.log("❌ No devotional for today");
+        return;
       }
+
+      const devo = devoSnap.docs[0].data();
+      const devoTitle = devo.title || "Renungan Hari Ini";
+
+      // Get ALL users
+      const usersSnap = await db.collection("users").get();
+
+      const tokens: string[] = [];
+      usersSnap.forEach((doc) => {
+        const data = doc.data();
+        if (isNotificationEnabled(data, "dailyDevo")) {
+          tokens.push(data.fcmToken);
+        }
+      });
+
+      if (tokens.length === 0) {
+        console.log("❌ No eligible users found");
+        return;
+      }
+
+      console.log(`📤 Sending to ${tokens.length} users`);
+
+      const response = await messaging.sendEachForMulticast({
+        tokens,
+        notification: {
+          title: "📖 Renungan Hari Ini",
+          body: devoTitle,
+        },
+        data: {
+          type: "daily_devotional",
+          devoId: devoSnap.docs[0].id,
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "daily_devotional",
+          },
+        },
+      });
+
+      console.log(`✅ Success: ${response.successCount}, Failed: ${response.failureCount}`);
+    } catch (error) {
+      console.error("❌ Error:", error);
     }
-  } catch (error) {
-    logger.error("sendDailyDevotional error", error);
   }
-});
+);
+
+// ─────────────────────────────────────────────────────────
+// 2. DETECT MATCH - When user likes someone who liked them back
+// ─────────────────────────────────────────────────────────
+export const detectMatch = onDocumentCreated(
+  {
+    document: "likes/{userId}/liked/{targetId}",
+    region: "asia-southeast2",
+  },
+  async (event) => {
+    const { userId, targetId } = event.params;
+    console.log(`💕 Checking match: ${userId} → ${targetId}`);
+
+    try {
+      // Check if target has liked this user back
+      const reverseLike = await db
+        .collection("likes")
+        .doc(targetId)
+        .collection("liked")
+        .doc(userId)
+        .get();
+
+      if (!reverseLike.exists) {
+        console.log("❌ No reverse like, no match");
+        return;
+      }
+
+      // Check if match already exists
+      const existingMatches = await db
+        .collection("matches")
+        .where("users", "array-contains", userId)
+        .get();
+
+      for (const doc of existingMatches.docs) {
+        const users = doc.data().users as string[];
+        if (users.includes(targetId)) {
+          console.log("⏭️ Match already exists");
+          return;
+        }
+      }
+
+      // Create new match
+      const matchRef = db.collection("matches").doc();
+      await matchRef.set({
+        users: [userId, targetId],
+        user1Id: userId,
+        user2Id: targetId,
+        createdAt: Timestamp.now(),
+        lastActivityAt: Timestamp.now(),
+        lastMessage: null,
+      });
+
+      console.log(`✅ Match created: ${matchRef.id}`);
+
+      // Get profiles and user data for notifications
+      const [profile1, profile2, user1, user2] = await Promise.all([
+        db.collection("profiles").doc(userId).get(),
+        db.collection("profiles").doc(targetId).get(),
+        db.collection("users").doc(userId).get(),
+        db.collection("users").doc(targetId).get(),
+      ]);
+
+      const name1 = profile1.data()?.name || "Seseorang";
+      const name2 = profile2.data()?.name || "Seseorang";
+      const photo1 = profile1.data()?.photos?.[0] || "";
+      const photo2 = profile2.data()?.photos?.[0] || "";
+
+      // Send notification to user1 if enabled
+      if (isNotificationEnabled(user1.data(), "newMatch")) {
+        await messaging.send({
+          token: user1.data()!.fcmToken,
+          notification: {
+            title: "💕 It's a Match!",
+            body: `Kamu dan ${name2} saling menyukai!`,
+          },
+          data: {
+            type: "new_match",
+            matchId: matchRef.id,
+            otherUserId: targetId,
+            otherUserName: name2,
+            otherUserPhoto: photo2,
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+          android: {
+            priority: "high",
+            notification: {
+              channelId: "matches",
+            },
+          },
+        });
+        console.log(`📤 Match notification sent to ${userId}`);
+      }
+
+      // Send notification to user2 if enabled
+      if (isNotificationEnabled(user2.data(), "newMatch")) {
+        await messaging.send({
+          token: user2.data()!.fcmToken,
+          notification: {
+            title: "💕 It's a Match!",
+            body: `Kamu dan ${name1} saling menyukai!`,
+          },
+          data: {
+            type: "new_match",
+            matchId: matchRef.id,
+            otherUserId: userId,
+            otherUserName: name1,
+            otherUserPhoto: photo1,
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+          android: {
+            priority: "high",
+            notification: {
+              channelId: "matches",
+            },
+          },
+        });
+        console.log(`📤 Match notification sent to ${targetId}`);
+      }
+    } catch (error) {
+      console.error("❌ Error in detectMatch:", error);
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────
+// 3. NEW MESSAGE NOTIFICATION
+// ─────────────────────────────────────────────────────────
+export const onNewMessage = onDocumentCreated(
+  {
+    document: "matches/{matchId}/messages/{msgId}",
+    region: "asia-southeast2",
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const matchId = event.params.matchId;
+    const senderId = data.senderId as string;
+    const text = (data.text as string) || "Sent a message";
+
+    console.log(`💬 New message in match ${matchId} from ${senderId}`);
+
+    try {
+      // Get match document
+      const matchDoc = await db.collection("matches").doc(matchId).get();
+      if (!matchDoc.exists) return;
+
+      const matchData = matchDoc.data()!;
+      const users = matchData.users as string[];
+      const receiverId = users.find((u) => u !== senderId);
+
+      if (!receiverId) return;
+
+      // Get receiver and sender data
+      const [receiverDoc, senderProfile] = await Promise.all([
+        db.collection("users").doc(receiverId).get(),
+        db.collection("profiles").doc(senderId).get(),
+      ]);
+
+      const receiverData = receiverDoc.data();
+      const senderName = senderProfile.data()?.name || "Seseorang";
+      const senderPhoto = senderProfile.data()?.photos?.[0] || "";
+
+      // Check if notification is enabled
+      if (!isNotificationEnabled(receiverData, "newMessage")) {
+        console.log("⏭️ Receiver has disabled message notifications");
+        return;
+      }
+
+      // Send notification
+      await messaging.send({
+        token: receiverData!.fcmToken,
+        notification: {
+          title: senderName,
+          body: text.length > 100 ? text.substring(0, 97) + "..." : text,
+        },
+        data: {
+          type: "new_message",
+          matchId: matchId,
+          senderId: senderId,
+          senderName: senderName,
+          senderPhoto: senderPhoto,
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "messages",
+          },
+        },
+      });
+
+      console.log(`📤 Message notification sent to ${receiverId}`);
+
+      // Update match's lastActivityAt and lastMessage
+      await matchDoc.ref.update({
+        lastActivityAt: Timestamp.now(),
+        lastMessage: {
+          text: text,
+          senderId: senderId,
+          timestamp: Timestamp.now(),
+        },
+      });
+    } catch (error) {
+      console.error("❌ Error in onNewMessage:", error);
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────
+// 4. TEST ENDPOINT - Check notification setup
+// ─────────────────────────────────────────────────────────
+export const testNotificationSetup = onRequest(
+  { region: "asia-southeast2" },
+  async (req, res) => {
+    try {
+      // Check daily devotionals
+      const devoSnap = await db
+        .collection("daily_devotionals")
+        .orderBy("date", "desc")
+        .limit(1)
+        .get();
+
+      // Check users
+      const usersSnap = await db.collection("users").get();
+
+      let usersWithToken = 0;
+      let usersWithDailyDevo = 0;
+      let usersWithNewMatch = 0;
+      let usersWithNewMessage = 0;
+
+      usersSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.fcmToken) usersWithToken++;
+        if (isNotificationEnabled(data, "dailyDevo")) usersWithDailyDevo++;
+        if (isNotificationEnabled(data, "newMatch")) usersWithNewMatch++;
+        if (isNotificationEnabled(data, "newMessage")) usersWithNewMessage++;
+      });
+
+      res.json({
+        success: true,
+        devotional: {
+          found: !devoSnap.empty,
+          latestTitle: devoSnap.docs[0]?.data()?.title || "N/A",
+          latestDate: devoSnap.docs[0]?.data()?.date?.toDate() || "N/A",
+        },
+        users: {
+          total: usersSnap.size,
+          withFcmToken: usersWithToken,
+          dailyDevoEnabled: usersWithDailyDevo,
+          newMatchEnabled: usersWithNewMatch,
+          newMessageEnabled: usersWithNewMessage,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: String(error) });
+    }
+  }
+);
