@@ -1,11 +1,12 @@
 // ============================================================
 // 📁 lib/screens/explore/explore_screen.dart
-// ✅ REDESIGNED: Modern, engaging UI like Instagram/Tinder
+// ✅ ONLY CHANGE: Added version check in initState
 // ============================================================
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sepadan/services/version_service.dart';
 import 'daily_devo_screen.dart';
 import 'prayer_request_screen.dart';
 import 'events_screen.dart';
@@ -33,6 +34,11 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       duration: const Duration(milliseconds: 800),
     );
     _animationController.forward();
+
+    // ✅ Check for app updates
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      VersionService().checkForUpdate(context);
+    });
   }
 
   @override
@@ -46,20 +52,13 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // 🔥 Modern App Bar
           _buildSliverAppBar(),
-          
-          // 🔥 Featured Banner
           SliverToBoxAdapter(
             child: _buildFeaturedBanner(),
           ),
-          
-          // 🔥 Quick Actions Row
           SliverToBoxAdapter(
             child: _buildQuickActions(),
           ),
-          
-          // 🔥 Community Hub Header
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
@@ -84,8 +83,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
               ),
             ),
           ),
-          
-          // 🔥 Main Menu Grid
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverGrid(
@@ -145,13 +142,9 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
               ]),
             ),
           ),
-          
-          // 🔥 Premium CTA at bottom
           SliverToBoxAdapter(
             child: _buildPremiumCTA(),
           ),
-          
-          // Bottom padding
           const SliverToBoxAdapter(
             child: SizedBox(height: 100),
           ),
@@ -256,7 +249,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         ),
         child: Stack(
           children: [
-            // Background pattern
             Positioned(
               right: -30,
               top: -30,
@@ -281,8 +273,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                 ),
               ),
             ),
-            
-            // Content
             Padding(
               padding: const EdgeInsets.all(24),
               child: Row(
@@ -469,7 +459,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           ),
           child: Stack(
             children: [
-              // Background decoration
               Positioned(
                 right: -20,
                 top: -20,
@@ -482,8 +471,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                   ),
                 ),
               ),
-              
-              // Content
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -526,8 +513,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                   ],
                 ),
               ),
-              
-              // Arrow indicator
               Positioned(
                 right: 16,
                 bottom: 16,
@@ -582,7 +567,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           ),
           child: Row(
             children: [
-              // Star icon with animation
               TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.8, end: 1.0),
                 duration: const Duration(milliseconds: 1500),

@@ -2,7 +2,7 @@ name: sepadan
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 4.1.0+50
+version: 4.1.0+52
 
 environment:
   sdk: ^3.9.0
@@ -36,7 +36,9 @@ dependencies:
   fluttertoast: ^8.2.8
   shared_preferences: ^2.5.5
   confetti: ^0.8.0
-
+  package_info_plus: ^8.0.0
+  share_plus: ^7.2.2
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:
@@ -55,3 +57,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/
+    - assets/logo.png
