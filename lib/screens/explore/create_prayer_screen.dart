@@ -1,8 +1,11 @@
+// ============================================================
+// 📁 lib/screens/explore/create_prayer_screen.dart
+// ✅ FIXED: Get username from Firestore directly (not Provider)
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
-import 'package:sepadan/models/user_profile.dart';
 
 class CreatePrayerScreen extends StatefulWidget {
   const CreatePrayerScreen({super.key});
@@ -23,16 +26,35 @@ class _CreatePrayerScreenState extends State<CreatePrayerScreen> {
 
     setState(() => _isSubmitting = true);
     final user = FirebaseAuth.instance.currentUser;
-    final userProfile = Provider.of<UserProfile?>(context, listen: false);
 
     try {
+      // ✅ Get username directly from Firestore
+      String userName = 'Anonim';
+      if (user != null) {
+        final profileDoc = await FirebaseFirestore.instance
+            .collection('profiles').doc(user.uid).get();
+        
+        if (profileDoc.exists && profileDoc.data()?['name'] != null) {
+          userName = profileDoc.data()!['name'];
+        } else {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users').doc(user.uid).get();
+          
+          if (userDoc.exists) {
+            userName = userDoc.data()?['displayName'] ?? 
+                       userDoc.data()?['name'] ?? 
+                       user.displayName ?? 'Anonim';
+          }
+        }
+      }
+
       await FirebaseFirestore.instance.collection('prayer_requests').add({
         'title': _titleController.text.trim(),
         'details': _detailsController.text.trim(),
         'submittedBy': user?.uid,
-        'userName': userProfile?.name ?? 'Anonymous',
+        'userName': userName,
         'status': 'pending',
-        'approved': false, // Admin will approve
+        'approved': false,
         'prayCount': 0,
         'comments': [],
         'isUrgent': _isUrgent,

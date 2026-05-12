@@ -172,7 +172,7 @@ Download di Google Play & App Store
 
     try {
       // Share with logo image
-      final byteData = await rootBundle.load('assets/images/logo.png');
+      final byteData = await rootBundle.load('assets/logo.png');
       final tempDir = await getTemporaryDirectory();
       final logoFile = File('${tempDir.path}/sepadan_logo.png');
       await logoFile.writeAsBytes(byteData.buffer.asUint8List());

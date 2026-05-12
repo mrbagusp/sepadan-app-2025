@@ -43,36 +43,34 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	
-	<!-- ✅ PERMISSIONS -->
-	
+
 	<!-- Photo Library -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SEPADAN memerlukan akses ke galeri foto untuk upload foto profil.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>SEPADAN memerlukan izin untuk menyimpan foto ke galeri.</string>
-	
+
 	<!-- Camera -->
 	<key>NSCameraUsageDescription</key>
 	<string>SEPADAN memerlukan akses kamera untuk mengambil foto profil.</string>
-	
+
 	<!-- Location -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SEPADAN memerlukan lokasi untuk menemukan pasangan di sekitarmu.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>SEPADAN memerlukan lokasi untuk menemukan pasangan di sekitarmu.</string>
-	
+
 	<!-- Push Notifications -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
-	
+
 	<!-- Firebase -->
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
-	
+
 	<!-- Google Sign-In -->
 	<key>CFBundleURLTypes</key>
 	<array>
@@ -85,14 +83,5 @@
 			</array>
 		</dict>
 	</array>
-	
-	<!-- App Transport Security (allow HTTPS) -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSAllowsArbitraryLoadsInWebContent</key>
-		<true/>
-	</dict>
 </dict>
 </plist>

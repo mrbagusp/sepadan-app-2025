@@ -64,68 +64,104 @@ export const sendDailyDevotional = onSchedule(
     console.log("🕔 sendDailyDevotional started at 5:00 AM WIB");
 
     try {
-      // Get today's devotional
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // ✅ FIX: Calculate today in WIB (UTC+7), not UTC
+      // When this runs at 5:00 AM WIB = 22:00 UTC previous day
+      // So we need to use WIB time to get correct "today"
+      const now = new Date();
+      const wibOffset = 7 * 60 * 60 * 1000; // UTC+7 in milliseconds
+      const wibNow = new Date(now.getTime() + wibOffset);
+      
+      // Get start of today in WIB, then convert back to UTC for Firestore query
+      const todayWIB = new Date(wibNow.getFullYear(), wibNow.getMonth(), wibNow.getDate());
+      const todayUTC = new Date(todayWIB.getTime() - wibOffset);
+      
+      const tomorrowUTC = new Date(todayUTC.getTime() + 24 * 60 * 60 * 1000);
+
+      console.log(`📅 Today WIB: ${todayWIB.toISOString()}, Query range: ${todayUTC.toISOString()} - ${tomorrowUTC.toISOString()}`);
 
       const devoSnap = await db
         .collection("daily_devotionals")
-        .where("date", ">=", Timestamp.fromDate(today))
-        .orderBy("date", "asc")
+        .where("date", ">=", Timestamp.fromDate(todayUTC))
+        .where("date", "<", Timestamp.fromDate(tomorrowUTC))
         .limit(1)
         .get();
 
       if (devoSnap.empty) {
-        console.log("❌ No devotional for today");
+        // Fallback: get the latest devotional up to today
+        console.log("⚠️ No devotional for exact today, trying latest...");
+        const fallbackSnap = await db
+          .collection("daily_devotionals")
+          .where("date", "<=", Timestamp.fromDate(tomorrowUTC))
+          .orderBy("date", "desc")
+          .limit(1)
+          .get();
+        
+        if (fallbackSnap.empty) {
+          console.log("❌ No devotional found at all");
+          return;
+        }
+
+        const devo = fallbackSnap.docs[0].data();
+        const devoTitle = devo.title || "Renungan Hari Ini";
+        console.log(`📖 Fallback devotional: "${devoTitle}"`);
+        
+        await _sendDevoNotification(devoTitle, fallbackSnap.docs[0].id);
         return;
       }
 
       const devo = devoSnap.docs[0].data();
       const devoTitle = devo.title || "Renungan Hari Ini";
+      console.log(`📖 Today's devotional: "${devoTitle}"`);
 
-      // Get ALL users
-      const usersSnap = await db.collection("users").get();
-
-      const tokens: string[] = [];
-      usersSnap.forEach((doc) => {
-        const data = doc.data();
-        if (isNotificationEnabled(data, "dailyDevo")) {
-          tokens.push(data.fcmToken);
-        }
-      });
-
-      if (tokens.length === 0) {
-        console.log("❌ No eligible users found");
-        return;
-      }
-
-      console.log(`📤 Sending to ${tokens.length} users`);
-
-      const response = await messaging.sendEachForMulticast({
-        tokens,
-        notification: {
-          title: "📖 Renungan Hari Ini",
-          body: devoTitle,
-        },
-        data: {
-          type: "daily_devotional",
-          devoId: devoSnap.docs[0].id,
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
-        android: {
-          priority: "high",
-          notification: {
-            channelId: "daily_devotional",
-          },
-        },
-      });
-
-      console.log(`✅ Success: ${response.successCount}, Failed: ${response.failureCount}`);
+      await _sendDevoNotification(devoTitle, devoSnap.docs[0].id);
     } catch (error) {
       console.error("❌ Error:", error);
     }
   }
 );
+
+// ─────────────────────────────────────────────────────────
+// HELPER: Send devotional notification to all eligible users
+// ─────────────────────────────────────────────────────────
+async function _sendDevoNotification(devoTitle: string, devoId: string) {
+  const usersSnap = await db.collection("users").get();
+
+  const tokens: string[] = [];
+  usersSnap.forEach((doc) => {
+    const data = doc.data();
+    if (isNotificationEnabled(data, "dailyDevo")) {
+      tokens.push(data.fcmToken);
+    }
+  });
+
+  if (tokens.length === 0) {
+    console.log("❌ No eligible users found");
+    return;
+  }
+
+  console.log(`📤 Sending to ${tokens.length} users`);
+
+  const response = await messaging.sendEachForMulticast({
+    tokens,
+    notification: {
+      title: "📖 Renungan Hari Ini",
+      body: devoTitle,
+    },
+    data: {
+      type: "daily_devotional",
+      devoId: devoId,
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "daily_devotional",
+      },
+    },
+  });
+
+  console.log(`✅ Success: ${response.successCount}, Failed: ${response.failureCount}`);
+}
 
 // ─────────────────────────────────────────────────────────
 // 2. DETECT MATCH - When user likes someone who liked them back
