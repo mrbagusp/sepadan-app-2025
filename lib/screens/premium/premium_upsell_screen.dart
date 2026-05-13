@@ -30,10 +30,12 @@ class PremiumUpsellScreen extends StatelessWidget {
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 40),
+              _buildFeatureItem(Icons.visibility, 'Lihat Siapa yang Suka Kamu'),
               _buildFeatureItem(Icons.swipe, 'Unlimited Swipe & Likes'),
               _buildFeatureItem(Icons.chat, 'Chat Tanpa Batas'),
               _buildFeatureItem(Icons.menu_book, 'Akses Seluruh Renungan Harian'),
               _buildFeatureItem(Icons.verified, 'Lencana Profil Terverifikasi'),
+              _buildFeatureItem(Icons.block, 'Tanpa Iklan'),
               const SizedBox(height: 48),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(

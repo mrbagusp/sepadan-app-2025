@@ -122,7 +122,7 @@ packages:
     source: hosted
     version: "0.3.5+1"
   crypto:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -704,14 +704,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.16.0"
-  midtrans_sdk:
-    dependency: "direct main"
-    description:
-      name: midtrans_sdk
-      sha256: "76ceac7e0f02f53fed2c7b5fc64774186281521183887c1e6eb378875bf5d82b"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.0"
   mime:
     dependency: transitive
     description:
