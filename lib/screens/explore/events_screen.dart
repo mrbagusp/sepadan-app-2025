@@ -154,13 +154,10 @@ class _EventsScreenState extends State<EventsScreen> {
           _buildPremiumBanner(),
         ],
       ),
+      // ✅ FREE: Anyone can create event
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          if (!hasFullAccess) {
-            _showPremiumPopup();
-          } else {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateEventScreen()));
-          }
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateEventScreen()));
         },
         label: const Text('Create New Event'),
         icon: const Icon(Icons.add),
