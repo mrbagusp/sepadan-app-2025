@@ -100,13 +100,13 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                 crossAxisCount: 2,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 1.1,
+                childAspectRatio: 0.95,
               ),
               delegate: SliverChildListDelegate([
                 _buildMenuCard(
                   context,
-                  title: 'Siapa Suka\nKamu? 💕',
-                  subtitle: 'Lihat penggemar rahasiamu',
+                  title: 'Secret Admirer 💕',
+                  subtitle: 'Siapa yang suka kamu?',
                   icon: Icons.visibility_rounded,
                   gradient: [const Color(0xFFE91E63), const Color(0xFFFF5252)],
                   screen: const WhoLikedYouScreen(),

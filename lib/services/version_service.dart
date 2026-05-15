@@ -18,7 +18,7 @@ class VersionService {
   
   // Store URLs
   static const String playStoreUrl = 
-      'https://play.google.com/store/apps/details?id=com.blessingnations.sepadan';
+      'https://play.google.com/store/apps/details?id=com.sepadan.app';
   static const String appStoreUrl = 
       'https://apps.apple.com/app/sepadan/id123456789'; // Update with real ID
 
